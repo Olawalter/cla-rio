@@ -1,0 +1,13 @@
+-- Seed data for development
+-- NOTE: In production, users are created through Supabase Auth
+-- This seed assumes auth.users entries already exist
+
+-- Example: Insert a test admin user (requires matching auth.users entry)
+-- insert into public.users (id, email, full_name, role, wallet_address)
+-- values (
+--   '00000000-0000-0000-0000-000000000001',
+--   'admin@clario.dev',
+--   'Admin User',
+--   'admin',
+--   '0x1234567890abcdef1234567890abcdef12345678'
+-- );

@@ -1,8 +1,23 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-export function createSupabaseClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+export function isSupabaseConfigured(): boolean {
+  return (
+    SUPABASE_URL.length > 0 &&
+    !SUPABASE_URL.includes("placeholder") &&
+    SUPABASE_ANON_KEY.length > 0 &&
+    !SUPABASE_ANON_KEY.includes("placeholder")
   );
+}
+
+let _client: ReturnType<typeof createBrowserClient> | null = null;
+
+export function createSupabaseClient() {
+  if (_client) return _client;
+  const url = isSupabaseConfigured() ? SUPABASE_URL : "https://placeholder.supabase.co";
+  const key = isSupabaseConfigured() ? SUPABASE_ANON_KEY : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder";
+  _client = createBrowserClient(url, key);
+  return _client;
 }

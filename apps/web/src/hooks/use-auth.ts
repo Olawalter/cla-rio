@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createSupabaseClient } from "@/services/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { UserRow } from "@/types/database";
@@ -20,7 +20,7 @@ export function useAuth() {
     loading: true,
   });
 
-  const supabase = createSupabaseClient();
+  const supabase = useMemo(() => createSupabaseClient(), []);
 
   useEffect(() => {
     const getSession = async () => {
@@ -50,7 +50,7 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event: string, session: Session | null) => {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("users")
@@ -70,7 +70,7 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

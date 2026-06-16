@@ -10,7 +10,6 @@ import {
   updateDoc,
   query,
   where,
-  orderBy,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/services/firebase/config";
@@ -38,13 +37,21 @@ export function useNotes(filters?: { status?: string; priority?: string }) {
   return useQuery({
     queryKey: ["notes", filters],
     queryFn: async () => {
-      const constraints: Parameters<typeof query>[1][] = [orderBy("created_at", "desc")];
+      const constraints: Parameters<typeof query>[1][] = [];
       if (filters?.status) {
-        constraints.unshift(where("status", "==", filters.status));
+        constraints.push(where("status", "==", filters.status));
       }
       const q = query(collection(db, "clinical_notes"), ...constraints);
       const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as NoteData));
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as NoteData));
+      docs.sort((a, b) => {
+        const aTime = a.created_at && typeof a.created_at === "object" && "seconds" in a.created_at
+          ? (a.created_at as { seconds: number }).seconds : 0;
+        const bTime = b.created_at && typeof b.created_at === "object" && "seconds" in b.created_at
+          ? (b.created_at as { seconds: number }).seconds : 0;
+        return bTime - aTime;
+      });
+      return docs;
     },
     enabled: !!user,
   });

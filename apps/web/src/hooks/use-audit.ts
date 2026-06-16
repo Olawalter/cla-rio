@@ -7,8 +7,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
-  limit as firestoreLimit,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/services/firebase/config";
@@ -18,12 +16,9 @@ export function useAuditLog(noteHash?: string) {
   return useQuery({
     queryKey: ["audit", noteHash],
     queryFn: async () => {
-      const constraints: Parameters<typeof query>[1][] = [
-        orderBy("created_at", "desc"),
-        firestoreLimit(100),
-      ];
+      const constraints: Parameters<typeof query>[1][] = [];
       if (noteHash) {
-        constraints.unshift(where("note_hash", "==", noteHash));
+        constraints.push(where("note_hash", "==", noteHash));
       }
       const q = query(collection(db, "audit_logs"), ...constraints);
       const snap = await getDocs(q);
@@ -36,15 +31,12 @@ export function useAuditLogs(params?: { noteId?: string; noteHash?: string; limi
   return useQuery({
     queryKey: ["audit-logs", params],
     queryFn: async () => {
-      const constraints: Parameters<typeof query>[1][] = [
-        orderBy("created_at", "desc"),
-        firestoreLimit(params?.limit || 100),
-      ];
+      const constraints: Parameters<typeof query>[1][] = [];
       if (params?.noteId) {
-        constraints.unshift(where("note_id", "==", params.noteId));
+        constraints.push(where("note_id", "==", params.noteId));
       }
       if (params?.noteHash) {
-        constraints.unshift(where("note_hash", "==", params.noteHash));
+        constraints.push(where("note_hash", "==", params.noteHash));
       }
       const q = query(collection(db, "audit_logs"), ...constraints);
       const snap = await getDocs(q);
@@ -72,6 +64,7 @@ export function useCreateAuditEntry() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["audit"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     },
   });
 }

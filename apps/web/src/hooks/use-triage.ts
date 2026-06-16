@@ -8,7 +8,6 @@ import {
   setDoc,
   query,
   where,
-  orderBy,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/services/firebase/config";
@@ -39,7 +38,6 @@ export function useTriageResults(noteId?: string) {
       const q = query(
         collection(db, "triage_results"),
         where("note_id", "==", noteId),
-        orderBy("created_at", "desc"),
       );
       const snap = await getDocs(q);
       return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TriageData));
@@ -54,11 +52,7 @@ export function useAllTriageResults() {
   return useQuery({
     queryKey: ["triage-all"],
     queryFn: async () => {
-      const q = query(
-        collection(db, "triage_results"),
-        orderBy("created_at", "desc"),
-      );
-      const snap = await getDocs(q);
+      const snap = await getDocs(collection(db, "triage_results"));
       return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TriageData));
     },
     enabled: !!user,
@@ -73,7 +67,6 @@ export function useTriageResult(noteId?: string) {
       const q = query(
         collection(db, "triage_results"),
         where("note_id", "==", noteId),
-        orderBy("created_at", "desc"),
       );
       const snap = await getDocs(q);
       if (snap.empty) return null;
@@ -92,7 +85,6 @@ export function useValidatorDecisions(noteId?: string) {
       const q = query(
         collection(db, "validator_decisions"),
         where("note_id", "==", noteId),
-        orderBy("created_at", "desc"),
       );
       const snap = await getDocs(q);
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -105,11 +97,9 @@ export function useChallenges(noteId?: string) {
   return useQuery({
     queryKey: ["challenges", noteId],
     queryFn: async () => {
-      const constraints: Parameters<typeof query>[1][] = [
-        orderBy("created_at", "desc"),
-      ];
+      const constraints: Parameters<typeof query>[1][] = [];
       if (noteId) {
-        constraints.unshift(where("note_id", "==", noteId));
+        constraints.push(where("note_id", "==", noteId));
       }
       const q = query(collection(db, "challenges"), ...constraints);
       const snap = await getDocs(q);

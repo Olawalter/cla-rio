@@ -12,6 +12,7 @@ import {
   LogOut,
   Bell,
   Wallet,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWallet } from "@/hooks/use-wallet";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/submit", label: "Submit Note", icon: PlusCircle },
   { href: "/validator", label: "Validator", icon: Users },
+  { href: "/profile", label: "Profile", icon: User },
   { href: "/admin", label: "Admin", icon: Settings, roles: ["admin"] },
 ];
 

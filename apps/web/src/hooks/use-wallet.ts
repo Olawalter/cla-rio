@@ -1,18 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createGenlayerClient, createAccount } from "@/services/genlayer/client";
 import { generatePrivateKey } from "genlayer-js";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/services/firebase/config";
 import { useAuth } from "./use-auth";
 import type { Account } from "genlayer-js/types";
-
-interface WalletState {
-  account: Account | null;
-  address: string | null;
-  connected: boolean;
-}
 
 function getOrCreateUserWallet(userId: string): Account {
   if (typeof window === "undefined") return createAccount();
@@ -33,38 +27,35 @@ function getOrCreateUserWallet(userId: string): Account {
 
 export function useWallet() {
   const { user, profile } = useAuth();
-  const [state, setState] = useState<WalletState>({
-    account: null,
-    address: null,
-    connected: false,
-  });
 
+  // Derive account synchronously from user.uid via useMemo — no useEffect race
+  const account = useMemo<Account | null>(() => {
+    if (!user?.uid) return null;
+    return getOrCreateUserWallet(user.uid);
+  }, [user?.uid]);
+
+  const address = account?.address ?? null;
+  const connected = !!account;
+
+  // Persist wallet address to user profile (fire-and-forget side effect)
   useEffect(() => {
-    if (!user) {
-      setState({ account: null, address: null, connected: false });
-      return;
-    }
-
-    const account = getOrCreateUserWallet(user.uid);
-    setState({ account, address: account.address, connected: true });
-
-    // Persist wallet address to user profile if not already set
-    if (!profile?.wallet_address) {
+    if (user?.uid && account && !profile?.wallet_address) {
       updateDoc(doc(db, "users", user.uid), {
         wallet_address: account.address,
       }).catch(() => {});
     }
-  }, [user?.uid]);
+  }, [user?.uid, account, profile?.wallet_address]);
 
   const getClient = () => {
-    if (state.account) return createGenlayerClient(state.account);
+    if (account) return createGenlayerClient(account);
     return createGenlayerClient();
   };
 
   return {
-    ...state,
+    account,
+    address,
+    connected,
     getClient,
-    // Kept for API compatibility — no-ops since wallet is always auto-connected
     connect: async () => {},
     connectMetaMask: async () => {},
     connectGenLayer: async () => {},

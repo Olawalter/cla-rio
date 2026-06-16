@@ -207,9 +207,19 @@ export default function SubmitNotePage() {
           )}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/30 px-4 py-3">
-              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
-              <span className="text-sm text-destructive">{error}</span>
+            <div className="rounded-lg bg-destructive/10 border border-destructive/30 px-4 py-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                <span className="text-sm font-medium text-destructive">On-chain submission failed</span>
+              </div>
+              <p className="text-xs text-destructive/80 font-mono break-all">{error}</p>
+              <button
+                type="button"
+                onClick={reset}
+                className="text-xs text-destructive underline hover:no-underline"
+              >
+                Reset and try again
+              </button>
             </div>
           )}
 

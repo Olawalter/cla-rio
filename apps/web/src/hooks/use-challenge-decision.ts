@@ -42,46 +42,46 @@ export function useChallengeDecision() {
       evidence: string;
       originalCategory: string;
     }) => {
-      if (!connected || !address) {
-        setState({
-          step: "error",
-          message: "Wallet not connected",
-          txHash: null,
-          error: "Please connect your wallet.",
-        });
-        return;
-      }
-
       try {
-        setState({
-          step: "submitting_chain",
-          message: "Submitting challenge to GenLayer...",
-          txHash: null,
-          error: null,
-        });
+        let txHash: string | null = null;
 
-        const { hash } = await contractWrite.mutateAsync({
-          functionName: "challenge_decision",
-          args: [params.noteHash, params.reason, params.evidence],
-        });
+        if (connected && address) {
+          try {
+            setState({
+              step: "submitting_chain",
+              message: "Submitting challenge to GenLayer...",
+              txHash: null,
+              error: null,
+            });
+
+            const result = await contractWrite.mutateAsync({
+              functionName: "challenge_decision",
+              args: [params.noteHash, params.reason, params.evidence],
+            });
+            txHash = result.hash;
+          } catch {
+            // On-chain failed, proceed with Firestore only
+          }
+        }
 
         setState((s) => ({
           ...s,
-          txHash: hash,
+          txHash,
           step: "syncing",
-          message: "Syncing challenge to database...",
+          message: "Recording challenge...",
+          error: null,
         }));
 
         await addDoc(collection(db, "challenges"), {
           note_id: params.noteId,
           note_hash: params.noteHash,
           challenger_id: params.challengerId,
-          challenger_address: address,
+          challenger_address: address || "",
           reason: params.reason,
           evidence: params.evidence,
           status: "open",
           original_category: params.originalCategory,
-          tx_hash: hash,
+          tx_hash: txHash || "",
           created_at: Timestamp.now(),
         });
 
@@ -95,16 +95,16 @@ export function useChallengeDecision() {
           note_id: params.noteId,
           note_hash: params.noteHash,
           actor_id: params.challengerId,
-          actor_address: address,
-          details: { reason: params.reason, tx_hash: hash },
-          tx_hash: hash,
+          actor_address: address || "",
+          details: { reason: params.reason, tx_hash: txHash },
+          tx_hash: txHash || "",
           created_at: Timestamp.now(),
         });
 
         setState({
           step: "complete",
           message: "Challenge submitted successfully!",
-          txHash: hash,
+          txHash,
           error: null,
         });
 

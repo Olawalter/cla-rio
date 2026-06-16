@@ -11,7 +11,7 @@ import { useUploadAttachment } from "@/hooks/use-attachments";
 const STEP_LABELS: Record<string, string> = {
   hashing: "Computing note hash...",
   storing: "Storing encrypted note in database...",
-  submitting: "Submitting to GenLayer contract...",
+  submitting: "Analyzing clinical note...",
   awaiting_consensus: "Awaiting validator consensus (this may take a moment)...",
   syncing: "Syncing assessment results...",
   complete: "Note submitted and assessed successfully!",
@@ -35,7 +35,17 @@ export default function SubmitNotePage() {
     e.preventDefault();
     if (!content.trim() || !user) return;
 
-    await submit(title, content, user.uid);
+    const createdNoteId = await submit(title, content, user.uid);
+
+    if (createdNoteId && files.length > 0) {
+      for (const file of files) {
+        try {
+          await uploadAttachment.mutateAsync({ noteId: createdNoteId, file });
+        } catch {
+          // attachment upload is best-effort
+        }
+      }
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

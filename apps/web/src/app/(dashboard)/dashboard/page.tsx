@@ -12,7 +12,8 @@ import {
 import Link from "next/link";
 import { useNotes } from "@/hooks/use-notes";
 import { useAuditLogs } from "@/hooks/use-audit";
-import { useChallenges } from "@/hooks/use-triage";
+import { useChallenges, useAllTriageResults } from "@/hooks/use-triage";
+import { useProcessPendingNotes } from "@/hooks/use-process-pending";
 import { formatTimestamp } from "@/lib/utils";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -32,21 +33,23 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  useProcessPendingNotes();
   const { data: notes, isLoading: notesLoading } = useNotes();
   const { data: auditLogs, isLoading: auditLoading } = useAuditLogs({ limit: 10 });
   const { data: challenges } = useChallenges();
+  const { data: triageResults } = useAllTriageResults();
 
-  const pendingCount = notes?.filter((n: any) => n.status === "submitted").length ?? 0;
+  const pendingCount = notes?.filter((n: any) => ["submitted", "pending_triage"].includes(n.status)).length ?? 0;
   const reviewCount = notes?.filter((n: any) => n.status === "human_review").length ?? 0;
   const consensusCount = notes?.filter((n: any) => n.status === "consensus_reached").length ?? 0;
   const challengeCount = challenges?.filter((c: any) => c.status === "open").length ?? 0;
 
   const categoryDistribution = {
-    emergency: notes?.filter((n: any) => n.priority === "emergency").length ?? 0,
-    urgent: notes?.filter((n: any) => n.priority === "urgent").length ?? 0,
-    same_day: notes?.filter((n: any) => n.priority === "same_day").length ?? 0,
-    routine: notes?.filter((n: any) => n.priority === "routine").length ?? 0,
-    administrative: notes?.filter((n: any) => n.priority === "administrative").length ?? 0,
+    emergency: triageResults?.filter((t: any) => t.category === "emergency").length ?? 0,
+    urgent: triageResults?.filter((t: any) => t.category === "urgent").length ?? 0,
+    same_day: triageResults?.filter((t: any) => t.category === "same_day").length ?? 0,
+    routine: triageResults?.filter((t: any) => t.category === "routine").length ?? 0,
+    administrative: triageResults?.filter((t: any) => t.category === "administrative").length ?? 0,
   };
 
   const stats = [

@@ -45,7 +45,6 @@ export function useAuth() {
         document.cookie = `firebase-session=${user.uid}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
         setState({ user, profile, loading: false });
       } else {
-        document.cookie = "firebase-session=; path=/; max-age=0";
         setState({ user: null, profile: null, loading: false });
       }
     });
@@ -82,6 +81,7 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    document.cookie = "firebase-session=; path=/; max-age=0";
     await firebaseSignOut(auth);
   };
 

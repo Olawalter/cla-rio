@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useWallet } from "@/hooks/use-wallet";
+import { useNotifications } from "@/hooks/use-notifications";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,6 +32,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const { connected, address, connect, connectMetaMask, connectGenLayer, connecting, disconnect, walletType, hasMetaMask } = useWallet();
+  const { data: notifications } = useNotifications();
+  const unreadCount = notifications?.filter((n: any) => !n.read).length ?? 0;
 
   return (
     <div className="flex min-h-screen">
@@ -122,6 +125,11 @@ export default function DashboardLayout({
           </div>
           <button className="relative rounded-lg p-2 text-muted-foreground hover:bg-secondary transition-colors">
             <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
         </header>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { createGenlayerClient, createAccount } from "@/services/genlayer/client";
+import { createGenlayerClient, getOrCreatePersistentAccount } from "@/services/genlayer/client";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/services/firebase/config";
 import { useAuth } from "./use-auth";
@@ -58,7 +58,7 @@ export function useWallet() {
         })
         .catch(() => {});
     } else if (savedType === "genlayer") {
-      const account = createAccount();
+      const account = getOrCreatePersistentAccount();
       setState({
         account,
         address: account.address,
@@ -127,7 +127,7 @@ export function useWallet() {
   const connectGenLayer = useCallback(async () => {
     setState((prev) => ({ ...prev, connecting: true }));
     try {
-      const account = createAccount();
+      const account = getOrCreatePersistentAccount();
       const address = account.address;
 
       localStorage.setItem("clario_wallet_type", "genlayer");

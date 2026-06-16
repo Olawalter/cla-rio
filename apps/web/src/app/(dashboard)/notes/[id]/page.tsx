@@ -20,6 +20,7 @@ import { useTriageResult, useValidatorDecisions, useChallenges } from "@/hooks/u
 import { useAuditLogs } from "@/hooks/use-audit";
 import { useAuth } from "@/hooks/use-auth";
 import { useChallengeDecision } from "@/hooks/use-challenge-decision";
+import { useEnsureTriage } from "@/hooks/use-ensure-triage";
 import { formatTimestamp, getConsensusStrength } from "@/lib/utils";
 
 const CATEGORY_BADGE: Record<string, string> = {
@@ -36,6 +37,7 @@ export default function NoteDetailPage() {
   const noteId = id as string;
 
   const { user } = useAuth();
+  useEnsureTriage(noteId);
   const { data: note, isLoading: noteLoading } = useNote(noteId);
   const { data: triage, isLoading: triageLoading } = useTriageResult(noteId);
   const { data: validatorDecisions } = useValidatorDecisions(noteId);
@@ -106,9 +108,9 @@ export default function NoteDetailPage() {
               <h3 className="font-semibold text-foreground">De-identified Note</h3>
             </div>
             <div className="p-5">
-              {note.de_identified_text ? (
+              {(note.de_identified_text || note.encrypted_content || note.content) ? (
                 <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed">
-                  {note.de_identified_text}
+                  {note.de_identified_text || note.encrypted_content || note.content}
                 </pre>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">

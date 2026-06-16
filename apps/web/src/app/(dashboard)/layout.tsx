@@ -31,7 +31,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { connected, address, connect, connectMetaMask, connectGenLayer, connecting, disconnect, walletType, hasMetaMask } = useWallet();
+  const { address } = useWallet();
   const { data: notifications } = useNotifications();
   const unreadCount = notifications?.filter((n: any) => !n.read).length ?? 0;
 
@@ -70,38 +70,17 @@ export default function DashboardLayout({
         </nav>
 
         <div className="border-t border-border px-3 py-4 space-y-2">
-          {!connected ? (
-            <div className="space-y-1">
-              {hasMetaMask && (
-                <button
-                  onClick={() => connectMetaMask()}
-                  disabled={connecting}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-                >
-                  <span className="text-base">🦊</span>
-                  {connecting ? "Connecting..." : "MetaMask"}
-                </button>
-              )}
-              <button
-                onClick={() => connectGenLayer()}
-                disabled={connecting}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-              >
-                <Wallet className="h-4 w-4" />
-                {connecting ? "Connecting..." : "GenLayer Wallet"}
-              </button>
+          {/* Embedded wallet — always active, tied to account */}
+          {address && (
+            <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/20 px-3 py-2">
+              <Wallet className="h-4 w-4 text-success flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground leading-none mb-0.5">Embedded wallet</p>
+                <p className="text-xs font-mono text-foreground truncate">
+                  {address.slice(0, 8)}...{address.slice(-6)}
+                </p>
+              </div>
             </div>
-          ) : (
-            <button
-              onClick={() => disconnect()}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors"
-            >
-              <Wallet className="h-4 w-4 text-success" />
-              <span className="truncate text-xs font-mono">
-                {address?.slice(0, 6)}...{address?.slice(-4)}
-              </span>
-              <span className="text-xs text-muted-foreground ml-auto">{walletType === "metamask" ? "🦊" : "GL"}</span>
-            </button>
           )}
           <button
             onClick={() => signOut()}

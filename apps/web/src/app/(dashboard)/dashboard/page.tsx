@@ -118,7 +118,7 @@ export default function DashboardPage() {
             ) : (
               <div className="p-5">
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  No notes submitted yet. Connect your wallet and submit your first note.
+                  No notes submitted yet. Submit your first note to get started.
                 </p>
               </div>
             )}

@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Upload, Send, Loader2, AlertCircle, CheckCircle, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useWallet } from "@/hooks/use-wallet";
 import { useSubmitNote } from "@/hooks/use-submit-note";
 import { useUploadAttachment } from "@/hooks/use-attachments";
 
@@ -25,7 +24,6 @@ export default function SubmitNotePage() {
   const router = useRouter();
 
   const { user } = useAuth();
-  const { connected } = useWallet();
   const { step, message, error, noteId, submit, reset } = useSubmitNote();
   const uploadAttachment = useUploadAttachment();
 
@@ -106,15 +104,6 @@ export default function SubmitNotePage() {
           Submit a clinical note for AI-assisted triage and consensus validation.
         </p>
       </div>
-
-      {!connected && (
-        <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/30 px-4 py-3">
-          <AlertCircle className="h-4 w-4 text-warning flex-shrink-0" />
-          <span className="text-sm text-warning">
-            Connect your wallet to submit notes on-chain.
-          </span>
-        </div>
-      )}
 
       <div className="rounded-xl border border-border bg-card p-6">
         <form onSubmit={handleSubmit} className="space-y-5">

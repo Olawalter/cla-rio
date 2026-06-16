@@ -168,15 +168,26 @@ class Clario(gl.Contract):
 
         def nondet():
             res = gl.nondet.exec_prompt(prompt, response_format="json")
-            res = res.replace("```json", "").replace("```", "").strip()
-            parsed = json.loads(res)
+            if isinstance(res, dict):
+                parsed = res
+            else:
+                res = str(res).replace("```json", "").replace("```", "").strip()
+                parsed = json.loads(res)
             valid_cats = ["emergency", "urgent", "same_day", "routine", "administrative"]
             assert parsed.get("category") in valid_cats
             assert 1 <= parsed.get("priority_score", 0) <= 100
             assert 1 <= parsed.get("confidence", 0) <= 100
             return json.dumps(parsed, sort_keys=True)
 
-        result_str = gl.eq_principle.strict_eq(nondet)
+        comparison_prompt = (
+            "Compare these two clinical triage assessments. "
+            "They are equivalent if they assign the same category AND "
+            "the priority scores are within 15 points of each other. "
+            "Minor wording differences in reasoning are acceptable. "
+            "Answer ONLY 'True' if equivalent or 'False' if not."
+        )
+
+        result_str = gl.eq_principle.prompt_comparative(nondet, comparison_prompt)
         result = json.loads(result_str)
 
         if force_review:
@@ -278,14 +289,24 @@ class Clario(gl.Contract):
 
         def nondet():
             res = gl.nondet.exec_prompt(resolve_prompt, response_format="json")
-            res = res.replace("```json", "").replace("```", "").strip()
-            parsed = json.loads(res)
+            if isinstance(res, dict):
+                parsed = res
+            else:
+                res = str(res).replace("```json", "").replace("```", "").strip()
+                parsed = json.loads(res)
             valid_cats = ["emergency", "urgent", "same_day", "routine", "administrative"]
             assert isinstance(parsed.get("upheld"), bool)
             assert parsed.get("new_category") in valid_cats
             return json.dumps(parsed, sort_keys=True)
 
-        result_str = gl.eq_principle.strict_eq(nondet)
+        resolve_comparison = (
+            "Compare these two challenge resolution outputs. "
+            "They are equivalent if they agree on 'upheld' (both true or both false) "
+            "AND assign the same 'new_category'. "
+            "Answer ONLY 'True' if equivalent or 'False' if not."
+        )
+
+        result_str = gl.eq_principle.prompt_comparative(nondet, resolve_comparison)
         result = json.loads(result_str)
 
         if result["upheld"]:

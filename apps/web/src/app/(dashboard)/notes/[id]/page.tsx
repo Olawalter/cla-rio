@@ -260,6 +260,12 @@ export default function NoteDetailPage() {
                   {triage?.consensus_percentage ? `${triage.consensus_percentage}% (${getConsensusStrength(triage.consensus_percentage)})` : "—"}
                 </span>
               </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Source</span>
+                <span className={`font-medium text-xs ${triage?.source === "genlayer_contract" ? "text-success" : "text-muted-foreground"}`}>
+                  {triage?.source === "genlayer_contract" ? "On-Chain (GenLayer)" : triage?.source === "local_triage" ? "Local Triage" : "—"}
+                </span>
+              </div>
               {note.tx_hash && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">TX Hash</span>

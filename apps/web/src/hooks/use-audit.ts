@@ -1,61 +1,77 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createSupabaseClient } from "@/services/supabase/client";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit as firestoreLimit,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "@/services/firebase/config";
+import { useAuth } from "./use-auth";
 
-const supabase = createSupabaseClient();
-
-export function useAuditLogs(filters?: {
-  noteId?: string;
-  eventType?: string;
-  limit?: number;
-}) {
+export function useAuditLog(noteHash?: string) {
   return useQuery({
-    queryKey: ["audit-logs", filters],
+    queryKey: ["audit", noteHash],
     queryFn: async () => {
-      let query = supabase
-        .from("audit_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(filters?.limit ?? 50);
-
-      if (filters?.noteId) {
-        query = query.eq("note_id", filters.noteId);
+      const constraints: Parameters<typeof query>[1][] = [
+        orderBy("created_at", "desc"),
+        firestoreLimit(100),
+      ];
+      if (noteHash) {
+        constraints.unshift(where("note_hash", "==", noteHash));
       }
-      if (filters?.eventType) {
-        query = query.eq("event_type", filters.eventType);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const q = query(collection(db, "audit_logs"), ...constraints);
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
   });
 }
 
-export function useCreateAuditLog() {
+export function useAuditLogs(params?: { noteId?: string; noteHash?: string; limit?: number }) {
+  return useQuery({
+    queryKey: ["audit-logs", params],
+    queryFn: async () => {
+      const constraints: Parameters<typeof query>[1][] = [
+        orderBy("created_at", "desc"),
+        firestoreLimit(params?.limit || 100),
+      ];
+      if (params?.noteId) {
+        constraints.unshift(where("note_id", "==", params.noteId));
+      }
+      if (params?.noteHash) {
+        constraints.unshift(where("note_hash", "==", params.noteHash));
+      }
+      const q = query(collection(db, "audit_logs"), ...constraints);
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    },
+  });
+}
+
+export function useCreateAuditEntry() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (log: {
+    mutationFn: async (data: {
       event_type: string;
-      note_id?: string;
-      note_hash?: string;
-      actor_id: string;
-      actor_address?: string;
+      note_hash: string;
       details: Record<string, unknown>;
-      tx_hash?: string;
     }) => {
-      const { data, error } = await supabase
-        .from("audit_logs")
-        .insert(log)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      await addDoc(collection(db, "audit_logs"), {
+        ...data,
+        actor: user?.uid || "system",
+        actor_email: user?.email || "system",
+        created_at: Timestamp.now(),
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 }

@@ -212,14 +212,14 @@ export default function LandingPage() {
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold text-foreground">Architecture</h2>
               <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-                GenLayer-first architecture with Supabase as a managed support layer.
+                GenLayer-first architecture with Firebase as a managed support layer.
               </p>
             </div>
             <div className="max-w-lg mx-auto">
               <div className="flex flex-col items-center gap-3">
                 {[
                   { label: "Frontend", sub: "Next.js 15 + TypeScript" },
-                  { label: "Supabase", sub: "Auth, Storage, Cache" },
+                  { label: "Firebase", sub: "Auth, Storage, Cache" },
                   { label: "GenLayer Contract", sub: "AI Processing + Consensus" },
                   { label: "Validator Consensus", sub: "5 Independent Validators" },
                   { label: "Human Review Queue", sub: "Mandatory for Critical Cases" },
@@ -250,8 +250,8 @@ export default function LandingPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               {[
-                { title: "No PHI On-Chain", desc: "Patient identifiers never leave your Supabase instance. Only hashes and classifications go on-chain." },
-                { title: "Row-Level Security", desc: "Supabase RLS policies enforce data access by role — validators only see de-identified text." },
+                { title: "No PHI On-Chain", desc: "Patient identifiers never leave your Firebase instance. Only hashes and classifications go on-chain." },
+                { title: "Firestore Security Rules", desc: "Firebase security rules enforce data access by role — validators only see de-identified text." },
                 { title: "Wallet-Based Identity", desc: "On-chain actions tied to wallet addresses with role-based permissions in the smart contract." },
                 { title: "Immutable Records", desc: "All decisions, votes, and challenges are permanently recorded for compliance audits." },
               ].map((item) => (
@@ -282,7 +282,7 @@ export default function LandingPage() {
                 },
                 {
                   q: "How is patient data protected?",
-                  a: "Raw clinical notes are stored encrypted in Supabase. Notes are de-identified before AI processing. Only hashes and classifications are stored on-chain — never PHI.",
+                  a: "Raw clinical notes are stored encrypted in Firebase. Notes are de-identified before AI processing. Only hashes and classifications are stored on-chain — never PHI.",
                 },
                 {
                   q: "What is validator consensus?",

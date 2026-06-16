@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { createSupabaseClient } from "@/services/supabase/client";
+import { collection, addDoc, updateDoc, doc, Timestamp } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
 import { useWallet } from "./use-wallet";
 import { useContractWrite } from "./use-contract";
 
@@ -31,7 +32,6 @@ export function useChallengeDecision() {
   const { connected, address } = useWallet();
   const contractWrite = useContractWrite();
   const queryClient = useQueryClient();
-  const supabase = createSupabaseClient();
 
   const challenge = useCallback(
     async (params: {
@@ -72,7 +72,7 @@ export function useChallengeDecision() {
           message: "Syncing challenge to database...",
         }));
 
-        await supabase.from("challenges").insert({
+        await addDoc(collection(db, "challenges"), {
           note_id: params.noteId,
           note_hash: params.noteHash,
           challenger_id: params.challengerId,
@@ -82,14 +82,15 @@ export function useChallengeDecision() {
           status: "open",
           original_category: params.originalCategory,
           tx_hash: hash,
+          created_at: Timestamp.now(),
         });
 
-        await supabase
-          .from("clinical_notes")
-          .update({ status: "challenged" })
-          .eq("id", params.noteId);
+        await updateDoc(doc(db, "clinical_notes", params.noteId), {
+          status: "challenged",
+          updated_at: Timestamp.now(),
+        });
 
-        await supabase.from("audit_logs").insert({
+        await addDoc(collection(db, "audit_logs"), {
           event_type: "decision_challenged",
           note_id: params.noteId,
           note_hash: params.noteHash,
@@ -97,6 +98,7 @@ export function useChallengeDecision() {
           actor_address: address,
           details: { reason: params.reason, tx_hash: hash },
           tx_hash: hash,
+          created_at: Timestamp.now(),
         });
 
         setState({
@@ -109,16 +111,17 @@ export function useChallengeDecision() {
         queryClient.invalidateQueries({ queryKey: ["challenges"] });
         queryClient.invalidateQueries({ queryKey: ["notes"] });
         queryClient.invalidateQueries({ queryKey: ["note", params.noteId] });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "An unexpected error occurred";
         setState((s) => ({
           ...s,
           step: "error",
           message: "Challenge failed",
-          error: err.message || "An unexpected error occurred",
+          error: message,
         }));
       }
     },
-    [connected, address, contractWrite, supabase, queryClient],
+    [connected, address, contractWrite, queryClient],
   );
 
   const reset = useCallback(() => {

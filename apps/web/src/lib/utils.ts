@@ -18,8 +18,20 @@ export function truncateAddress(address: string, chars = 4): string {
   return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
 }
 
-export function formatTimestamp(timestamp: string): string {
-  return new Date(timestamp).toLocaleString("en-US", {
+export function formatTimestamp(timestamp: unknown): string {
+  if (!timestamp) return "";
+  let date: Date;
+  if (typeof timestamp === "string") {
+    date = new Date(timestamp);
+  } else if (timestamp && typeof timestamp === "object" && "toDate" in timestamp) {
+    date = (timestamp as { toDate: () => Date }).toDate();
+  } else if (timestamp && typeof timestamp === "object" && "seconds" in timestamp) {
+    date = new Date((timestamp as { seconds: number }).seconds * 1000);
+  } else {
+    date = new Date(String(timestamp));
+  }
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -52,7 +52,7 @@ export default function NoteDetailPage() {
     await challengeDecision.challenge({
       noteId: note.id,
       noteHash: note.note_hash,
-      challengerId: user.id,
+      challengerId: user.uid,
       reason: challengeReason,
       evidence: challengeEvidence,
       originalCategory: triage?.category || "unknown",

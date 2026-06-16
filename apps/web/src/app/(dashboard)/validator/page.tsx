@@ -24,7 +24,17 @@ export default function ValidatorWorkspacePage() {
   const completedToday = notes?.filter((n: any) => {
     if (!n.updated_at) return false;
     const today = new Date().toISOString().split("T")[0];
-    return n.updated_at.startsWith(today) && ["consensus_reached", "finalized"].includes(n.status);
+    let dateStr: string;
+    if (typeof n.updated_at === "string") {
+      dateStr = n.updated_at;
+    } else if (n.updated_at?.toDate) {
+      dateStr = n.updated_at.toDate().toISOString();
+    } else if (n.updated_at?.seconds) {
+      dateStr = new Date(n.updated_at.seconds * 1000).toISOString();
+    } else {
+      return false;
+    }
+    return dateStr.startsWith(today) && ["consensus_reached", "finalized"].includes(n.status);
   }) ?? [];
   const activeChallenges = challenges?.filter((c: any) => c.status === "open") ?? [];
 

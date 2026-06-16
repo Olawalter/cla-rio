@@ -1,68 +1,47 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { createSupabaseClient } from "@/services/supabase/client";
+import {
+  collection,
+  doc,
+  getDocs,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "@/services/firebase/config";
+import { useAuth } from "./use-auth";
 
-const supabase = createSupabaseClient();
+export function useNotifications() {
+  const { user } = useAuth();
 
-export function useNotifications(userId: string | undefined) {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: ["notifications", userId],
+  return useQuery({
+    queryKey: ["notifications", user?.uid],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", userId!)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data;
+      if (!user) return [];
+      const q = query(
+        collection(db, "notifications"),
+        where("user_id", "==", user.uid),
+        orderBy("created_at", "desc"),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
-    enabled: !!userId,
+    enabled: !!user,
   });
-
-  const unreadCount = query.data?.filter((n: any) => !n.read).length ?? 0;
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel("notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, queryClient]);
-
-  return { ...query, unreadCount };
 }
 
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ read: true })
-        .eq("id", id);
-      if (error) throw error;
+    mutationFn: async (notificationId: string) => {
+      await updateDoc(doc(db, "notifications", notificationId), {
+        read: true,
+        read_at: Timestamp.now(),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });

@@ -35,7 +35,7 @@ export default function SubmitNotePage() {
     e.preventDefault();
     if (!content.trim() || !user) return;
 
-    await submit(title, content, user.id);
+    await submit(title, content, user.uid);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,7 +224,7 @@ export default function SubmitNotePage() {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !content.trim() || !connected}
+              disabled={isSubmitting || !content.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isSubmitting ? (

@@ -14,6 +14,6 @@ export const ROUTES = {
   admin: "/admin",
 } as const;
 
-export const SUPABASE_STORAGE_BUCKETS = {
+export const STORAGE_PATHS = {
   attachments: "attachments",
 } as const;

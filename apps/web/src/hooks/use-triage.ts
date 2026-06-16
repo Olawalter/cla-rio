@@ -1,72 +1,101 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createSupabaseClient } from "@/services/supabase/client";
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "@/services/firebase/config";
+import { useAuth } from "./use-auth";
 
-const supabase = createSupabaseClient();
+interface TriageData {
+  id: string;
+  note_id: string;
+  note_hash: string;
+  category: string;
+  priority_score: number;
+  confidence: number;
+  reasoning: string;
+  routing_recommendation?: string;
+  missing_info?: string[];
+  critical_keywords_found?: string[];
+  human_review_required?: boolean;
+  consensus_percentage?: number;
+  created_at: unknown;
+  [key: string]: unknown;
+}
 
-export function useTriageResult(noteId: string) {
+export function useTriageResults(noteId?: string) {
   return useQuery({
     queryKey: ["triage", noteId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("triage_results")
-        .select("*")
-        .eq("note_id", noteId)
-        .single();
-      if (error && error.code !== "PGRST116") throw error;
-      return data;
+      if (!noteId) return [];
+      const q = query(
+        collection(db, "triage_results"),
+        where("note_id", "==", noteId),
+        orderBy("created_at", "desc"),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TriageData));
     },
     enabled: !!noteId,
   });
 }
 
-export function useCreateTriageResult() {
-  const queryClient = useQueryClient();
+export function useAllTriageResults() {
+  const { user } = useAuth();
 
-  return useMutation({
-    mutationFn: async (result: {
-      note_id: string;
-      note_hash: string;
-      category: string;
-      priority_score: number;
-      confidence: number;
-      reasoning: string;
-      missing_info: string[];
-      routing_recommendation: string;
-      human_review_required: boolean;
-      human_review_reasons: string[];
-      critical_keywords_found: string[];
-      consensus_strength?: string;
-      consensus_percentage?: number;
-      protocol_version: string;
-      tx_hash?: string;
-    }) => {
-      const { data, error } = await supabase
-        .from("triage_results")
-        .insert(result)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+  return useQuery({
+    queryKey: ["triage-all"],
+    queryFn: async () => {
+      const q = query(
+        collection(db, "triage_results"),
+        orderBy("created_at", "desc"),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TriageData));
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["triage", data.note_id] });
-    },
+    enabled: !!user,
   });
 }
 
-export function useValidatorDecisions(noteId: string) {
+export function useTriageResult(noteId?: string) {
+  return useQuery({
+    queryKey: ["triage-result", noteId],
+    queryFn: async () => {
+      if (!noteId) return null;
+      const q = query(
+        collection(db, "triage_results"),
+        where("note_id", "==", noteId),
+        orderBy("created_at", "desc"),
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) return null;
+      const d = snap.docs[0];
+      return { id: d.id, ...d.data() } as TriageData;
+    },
+    enabled: !!noteId,
+  });
+}
+
+export function useValidatorDecisions(noteId?: string) {
   return useQuery({
     queryKey: ["validator-decisions", noteId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("validator_decisions")
-        .select("*")
-        .eq("note_id", noteId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data;
+      if (!noteId) return [];
+      const q = query(
+        collection(db, "validator_decisions"),
+        where("note_id", "==", noteId),
+        orderBy("created_at", "desc"),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
     enabled: !!noteId,
   });
@@ -76,46 +105,42 @@ export function useChallenges(noteId?: string) {
   return useQuery({
     queryKey: ["challenges", noteId],
     queryFn: async () => {
-      let query = supabase
-        .from("challenges")
-        .select("*")
-        .order("created_at", { ascending: false });
-
+      const constraints: Parameters<typeof query>[1][] = [
+        orderBy("created_at", "desc"),
+      ];
       if (noteId) {
-        query = query.eq("note_id", noteId);
+        constraints.unshift(where("note_id", "==", noteId));
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const q = query(collection(db, "challenges"), ...constraints);
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
   });
 }
 
-export function useCreateChallenge() {
+export function useSaveTriageResult() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (challenge: {
+    mutationFn: async (data: {
       note_id: string;
       note_hash: string;
-      challenger_id: string;
-      challenger_address: string;
-      reason: string;
-      evidence?: string;
-      original_category: string;
-      tx_hash?: string;
+      category: string;
+      priority_score: number;
+      confidence: number;
+      reasoning: string;
+      human_review_required: boolean;
     }) => {
-      const { data, error } = await supabase
-        .from("challenges")
-        .insert({ ...challenge, status: "open" })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      const id = `${data.note_id}_${Date.now()}`;
+      await setDoc(doc(db, "triage_results", id), {
+        ...data,
+        created_at: Timestamp.now(),
+      });
+      return id;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["challenges"] });
+      queryClient.invalidateQueries({ queryKey: ["triage"] });
+      queryClient.invalidateQueries({ queryKey: ["triage-all"] });
     },
   });
 }

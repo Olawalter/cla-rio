@@ -30,7 +30,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { connected, address, connect, connecting } = useWallet();
+  const { connected, address, connect, connectMetaMask, connectGenLayer, connecting, disconnect, walletType, hasMetaMask } = useWallet();
 
   return (
     <div className="flex min-h-screen">
@@ -68,21 +68,37 @@ export default function DashboardLayout({
 
         <div className="border-t border-border px-3 py-4 space-y-2">
           {!connected ? (
-            <button
-              onClick={() => connect()}
-              disabled={connecting}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-            >
-              <Wallet className="h-4 w-4" />
-              {connecting ? "Connecting..." : "Connect Wallet"}
-            </button>
+            <div className="space-y-1">
+              {hasMetaMask && (
+                <button
+                  onClick={() => connectMetaMask()}
+                  disabled={connecting}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                >
+                  <span className="text-base">🦊</span>
+                  {connecting ? "Connecting..." : "MetaMask"}
+                </button>
+              )}
+              <button
+                onClick={() => connectGenLayer()}
+                disabled={connecting}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <Wallet className="h-4 w-4" />
+                {connecting ? "Connecting..." : "GenLayer Wallet"}
+              </button>
+            </div>
           ) : (
-            <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+            <button
+              onClick={() => disconnect()}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary transition-colors"
+            >
               <Wallet className="h-4 w-4 text-success" />
               <span className="truncate text-xs font-mono">
                 {address?.slice(0, 6)}...{address?.slice(-4)}
               </span>
-            </div>
+              <span className="text-xs text-muted-foreground ml-auto">{walletType === "metamask" ? "🦊" : "GL"}</span>
+            </button>
           )}
           <button
             onClick={() => signOut()}

@@ -15,7 +15,6 @@ import {
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-white/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
@@ -33,16 +32,10 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link
-              href="/login"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup"
+              href="/dashboard"
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Get Started
+              Launch App
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -50,23 +43,22 @@ export default function LandingPage() {
       </header>
 
       <main className="flex-1">
-        {/* Hero */}
         <section className="relative overflow-hidden py-24 md:py-32">
           <div className="max-w-7xl mx-auto px-6 text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-1.5 text-sm text-muted-foreground mb-8">
               <Lock className="h-3.5 w-3.5" />
-              Privacy-Preserving Clinical Workflow
+              100% On-Chain Clinical Workflow
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground max-w-4xl mx-auto leading-[1.1]">
               Decentralized Administrative Triage for Clinical Notes
             </h1>
             <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
               AI-assisted prioritization, consensus-based validation, and immutable audit trails.
-              Built on GenLayer for transparent, explainable healthcare workflow decisions.
+              Built entirely on GenLayer Intelligent Contracts — no external backends.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/signup"
+                href="/dashboard"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 Start Triaging
@@ -82,7 +74,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Problem */}
         <section id="problem" className="py-20 bg-white border-y border-border">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
@@ -119,7 +110,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Solution */}
         <section id="solution" className="py-20">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
@@ -173,7 +163,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Features */}
         <section id="features" className="py-20 bg-white border-y border-border">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
@@ -181,10 +170,10 @@ export default function LandingPage() {
             </div>
             <div className="grid md:grid-cols-3 gap-6">
               {[
-                { icon: FileText, title: "Note Submission", desc: "Submit clinical notes with attachments and structured previews." },
+                { icon: FileText, title: "Note Submission", desc: "Submit clinical notes directly to the GenLayer intelligent contract." },
                 { icon: Shield, title: "PII Protection", desc: "Automatic de-identification before any AI processing." },
                 { icon: Activity, title: "Priority Scoring", desc: "AI-powered scoring from 1-100 with confidence levels." },
-                { icon: Users, title: "Validator Consensus", desc: "5-validator consensus with strong/moderate/weak thresholds." },
+                { icon: Users, title: "Validator Consensus", desc: "Multi-validator consensus with strong/moderate/weak thresholds." },
                 { icon: Eye, title: "Human Review Queue", desc: "Mandatory human review for low-confidence or critical cases." },
                 { icon: Scale, title: "Challenge System", desc: "Dispute and re-evaluate decisions with evidence." },
                 { icon: Lock, title: "Immutable Audit", desc: "Every action recorded on-chain for compliance." },
@@ -206,22 +195,20 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Architecture */}
         <section id="architecture" className="py-20">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
               <h2 className="text-3xl font-bold text-foreground">Architecture</h2>
               <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-                GenLayer-first architecture with Firebase as a managed support layer.
+                100% on-chain architecture — GenLayer Intelligent Contract is the only backend.
               </p>
             </div>
             <div className="max-w-lg mx-auto">
               <div className="flex flex-col items-center gap-3">
                 {[
                   { label: "Frontend", sub: "Next.js 15 + TypeScript" },
-                  { label: "Firebase", sub: "Auth, Storage, Cache" },
-                  { label: "GenLayer Contract", sub: "AI Processing + Consensus" },
-                  { label: "Validator Consensus", sub: "5 Independent Validators" },
+                  { label: "GenLayer Intelligent Contract", sub: "AI Processing + State + Consensus" },
+                  { label: "Validator Consensus", sub: "Optimistic Democracy" },
                   { label: "Human Review Queue", sub: "Mandatory for Critical Cases" },
                   { label: "Immutable Audit Trail", sub: "On-Chain Records" },
                 ].map((step, i) => (
@@ -230,7 +217,7 @@ export default function LandingPage() {
                       <div className="font-semibold text-foreground">{step.label}</div>
                       <div className="text-xs text-muted-foreground mt-1">{step.sub}</div>
                     </div>
-                    {i < 5 && (
+                    {i < 4 && (
                       <div className="flex justify-center py-1">
                         <div className="w-px h-4 bg-border" />
                       </div>
@@ -242,7 +229,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Security */}
         <section id="security" className="py-20 bg-white border-y border-border">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
@@ -250,10 +236,10 @@ export default function LandingPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               {[
-                { title: "No PHI On-Chain", desc: "Patient identifiers never leave your Firebase instance. Only hashes and classifications go on-chain." },
-                { title: "Firestore Security Rules", desc: "Firebase security rules enforce data access by role — validators only see de-identified text." },
-                { title: "Wallet-Based Identity", desc: "On-chain actions tied to wallet addresses with role-based permissions in the smart contract." },
-                { title: "Immutable Records", desc: "All decisions, votes, and challenges are permanently recorded for compliance audits." },
+                { title: "No PHI On-Chain", desc: "Patient identifiers are never stored on-chain. Only hashes, classifications, and audit events are recorded." },
+                { title: "On-Chain Access Control", desc: "Role-based permissions enforced directly in the intelligent contract — admin, reviewer, validator, submitter." },
+                { title: "Auto-Generated Wallet", desc: "No MetaMask needed. Wallets are auto-generated and stored locally. StudioNet is gasless." },
+                { title: "Immutable Records", desc: "All decisions, votes, and challenges are permanently recorded on-chain for compliance audits." },
               ].map((item) => (
                 <div
                   key={item.title}
@@ -270,7 +256,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* FAQ */}
         <section className="py-20">
           <div className="max-w-3xl mx-auto px-6">
             <h2 className="text-3xl font-bold text-foreground text-center mb-12">FAQ</h2>
@@ -282,11 +267,11 @@ export default function LandingPage() {
                 },
                 {
                   q: "How is patient data protected?",
-                  a: "Raw clinical notes are stored encrypted in Firebase. Notes are de-identified before AI processing. Only hashes and classifications are stored on-chain — never PHI.",
+                  a: "Clinical notes are de-identified before AI processing. Only hashes and classifications are stored on-chain — never PHI. Raw notes exist only in the browser during submission.",
                 },
                 {
                   q: "What is validator consensus?",
-                  a: "Five independent GenLayer validators independently analyze each note and vote on the triage category. Decisions require 80%+ agreement for strong consensus.",
+                  a: "Multiple independent GenLayer validators analyze each note and vote on the triage category. Decisions require agreement through Optimistic Democracy consensus.",
                 },
                 {
                   q: "Can decisions be challenged?",
@@ -295,6 +280,10 @@ export default function LandingPage() {
                 {
                   q: "What blockchain does Clario use?",
                   a: "Clario is built on GenLayer, an AI-native Layer-1 blockchain that enables Intelligent Contracts with built-in LLM capabilities and Optimistic Democracy consensus.",
+                },
+                {
+                  q: "Do I need a wallet or tokens?",
+                  a: "No. Clario auto-generates a wallet in your browser. StudioNet is gasless, so all interactions are free — no MetaMask, no tokens, no setup.",
                 },
               ].map((item) => (
                 <div key={item.q} className="border-b border-border pb-6">
@@ -307,7 +296,6 @@ export default function LandingPage() {
         </section>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border bg-white py-8">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">

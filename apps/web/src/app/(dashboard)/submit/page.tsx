@@ -1,80 +1,45 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Upload, Send, Loader2, AlertCircle, CheckCircle, X } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { Send, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { useSubmitNote } from "@/hooks/use-submit-note";
-import { useUploadAttachment } from "@/hooks/use-attachments";
 
 const STEP_LABELS: Record<string, string> = {
   hashing: "Computing note hash...",
-  storing: "Storing encrypted note in database...",
-  submitting: "Analyzing clinical note...",
-  awaiting_consensus: "Awaiting validator consensus (this may take a moment)...",
-  syncing: "Syncing assessment results...",
-  complete: "Note submitted and assessed successfully!",
+  submitting: "Submitting to GenLayer intelligent contract...",
+  awaiting_consensus: "Awaiting GenLayer validator consensus (1-3 min)...",
+  reading: "Reading on-chain assessment...",
+  complete: "Note submitted and assessed on-chain!",
 };
 
 export default function SubmitNotePage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const { user } = useAuth();
-  const { step, message, error, noteId, submit, reset } = useSubmitNote();
-  const uploadAttachment = useUploadAttachment();
+  const { step, message, error, noteHash, submit, reset } = useSubmitNote();
 
   const isSubmitting = step !== "idle" && step !== "complete" && step !== "error";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !user) return;
-
-    const createdNoteId = await submit(title, content, user.uid);
-
-    if (createdNoteId && files.length > 0) {
-      for (const file of files) {
-        try {
-          await uploadAttachment.mutateAsync({ noteId: createdNoteId, file });
-        } catch {
-          // attachment upload is best-effort
-        }
-      }
-    }
+    if (!content.trim()) return;
+    await submit(title, content);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files) {
-      setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
-    }
-  };
-
-  if (step === "complete" && noteId) {
+  if (step === "complete" && noteHash) {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="rounded-xl border border-success/30 bg-success/5 p-8 text-center">
           <CheckCircle className="h-12 w-12 text-success mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-foreground">Note Submitted Successfully</h2>
+          <h2 className="text-xl font-bold text-foreground">Note Submitted On-Chain</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Your clinical note has been submitted and processed through GenLayer consensus.
+            Your clinical note has been submitted, classified by GenLayer AI validators, and the assessment is stored on-chain.
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <button
-              onClick={() => router.push(`/notes/${noteId}`)}
+              onClick={() => router.push(`/notes/${noteHash}`)}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               View Note Details
@@ -84,7 +49,6 @@ export default function SubmitNotePage() {
                 reset();
                 setTitle("");
                 setContent("");
-                setFiles([]);
               }}
               className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
             >
@@ -101,7 +65,7 @@ export default function SubmitNotePage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Submit Clinical Note</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Submit a clinical note for AI-assisted triage and consensus validation.
+          Submit a clinical note for on-chain AI triage via GenLayer consensus.
         </p>
       </div>
 
@@ -138,52 +102,10 @@ export default function SubmitNotePage() {
               placeholder="Enter the clinical note content here..."
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              The note will be de-identified before AI processing. No PHI is stored on-chain.
+              The note is sent directly to the GenLayer intelligent contract for AI-powered triage.
             </p>
           </div>
 
-          {/* Attachments */}
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            className="rounded-lg border-2 border-dashed border-border p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-          >
-            <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Drag and drop attachments, or click to browse
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              PDF, images, documents up to 10MB
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={handleFileChange}
-              className="hidden"
-              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-            />
-          </div>
-
-          {files.length > 0 && (
-            <div className="space-y-2">
-              {files.map((file, i) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-foreground">{file.name}</span>
-                    <span className="text-muted-foreground">({(file.size / 1024).toFixed(1)} KB)</span>
-                  </div>
-                  <button type="button" onClick={() => removeFile(i)} className="text-muted-foreground hover:text-foreground">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Status indicator */}
           {isSubmitting && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
@@ -191,12 +113,12 @@ export default function SubmitNotePage() {
                 <span className="text-sm text-primary">{STEP_LABELS[step] || message}</span>
               </div>
               <div className="flex gap-1">
-                {["hashing", "storing", "submitting", "awaiting_consensus", "syncing"].map((s) => (
+                {["hashing", "submitting", "awaiting_consensus", "reading"].map((s) => (
                   <div
                     key={s}
                     className={`h-1 flex-1 rounded-full transition-colors ${
-                      ["hashing", "storing", "submitting", "awaiting_consensus", "syncing"].indexOf(step) >=
-                      ["hashing", "storing", "submitting", "awaiting_consensus", "syncing"].indexOf(s)
+                      ["hashing", "submitting", "awaiting_consensus", "reading"].indexOf(step) >=
+                      ["hashing", "submitting", "awaiting_consensus", "reading"].indexOf(s)
                         ? "bg-primary"
                         : "bg-border"
                     }`}
@@ -207,30 +129,13 @@ export default function SubmitNotePage() {
           )}
 
           {error && (
-            <div className="rounded-lg bg-destructive/10 border border-destructive/30 px-4 py-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
-                <span className="text-sm font-medium text-destructive">On-chain submission failed</span>
-              </div>
-              <p className="text-xs text-destructive/80 font-mono break-all">{error}</p>
-              <button
-                type="button"
-                onClick={reset}
-                className="text-xs text-destructive underline hover:no-underline"
-              >
-                Reset and try again
-              </button>
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/30 px-4 py-3">
+              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <span className="text-sm text-destructive">{error}</span>
             </div>
           )}
 
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              disabled={isSubmitting}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
-            >
-              Save Draft
-            </button>
+          <div className="flex justify-end">
             <button
               type="submit"
               disabled={isSubmitting || !content.trim()}
@@ -241,7 +146,7 @@ export default function SubmitNotePage() {
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Submit for Triage
+              Submit On-Chain
             </button>
           </div>
         </form>

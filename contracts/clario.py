@@ -11,6 +11,8 @@ class Clario(gl.Contract):
     challenges: TreeMap[str, str]
     roles: TreeMap[str, str]
     audit_log: DynArray[str]
+    note_hashes: DynArray[str]
+    challenge_ids: DynArray[str]
     protocol_version: str
     challenge_counter: u32
 
@@ -82,6 +84,8 @@ class Clario(gl.Contract):
             "timestamp": ts,
             "status": "submitted",
         })
+
+        self.note_hashes.append(note_hash)
 
         self.audit_log.append(json.dumps({
             "event_type": "note_submitted",
@@ -232,6 +236,8 @@ class Clario(gl.Contract):
             "created_at": ts,
             "resolved_at": "",
         })
+
+        self.challenge_ids.append(challenge_id)
 
         note_data["status"] = "challenged"
         self.notes[note_hash] = json.dumps(note_data)
@@ -394,7 +400,7 @@ class Clario(gl.Contract):
         }))
 
     # -----------------------------------------------------------------------
-    # View methods
+    # View methods — single item
     # -----------------------------------------------------------------------
 
     @gl.public.view
@@ -423,6 +429,49 @@ class Clario(gl.Contract):
     def get_protocol_version(self) -> str:
         return self.protocol_version
 
+    # -----------------------------------------------------------------------
+    # View methods — batch listing
+    # -----------------------------------------------------------------------
+
+    @gl.public.view
+    def get_note_count(self) -> u32:
+        return u32(len(self.note_hashes))
+
+    @gl.public.view
+    def get_all_notes(self) -> str:
+        result = []
+        for i in range(len(self.note_hashes)):
+            h = self.note_hashes[i]
+            note = json.loads(self.notes[h])
+            assessment = None
+            if h in self.assessments:
+                assessment = json.loads(self.assessments[h])
+            result.append({
+                "note_hash": h,
+                "note": note,
+                "assessment": assessment,
+            })
+        return json.dumps(result)
+
     @gl.public.view
     def get_audit_log_length(self) -> u32:
         return u32(len(self.audit_log))
+
+    @gl.public.view
+    def get_all_audit_logs(self) -> str:
+        result = []
+        for i in range(len(self.audit_log)):
+            result.append(json.loads(self.audit_log[i]))
+        return json.dumps(result)
+
+    @gl.public.view
+    def get_challenge_count(self) -> u32:
+        return u32(len(self.challenge_ids))
+
+    @gl.public.view
+    def get_all_challenges(self) -> str:
+        result = []
+        for i in range(len(self.challenge_ids)):
+            cid = self.challenge_ids[i]
+            result.append(json.loads(self.challenges[cid]))
+        return json.dumps(result)

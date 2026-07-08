@@ -1,63 +1,94 @@
 # Clario
 
-Privacy-preserving, explainable, decentralized clinical workflow infrastructure for administrative note triage and audit.
+**Privacy-preserving, decentralized clinical note triage — 100% on-chain.**
 
-**Live Demo:** [cla-rio.vercel.app](https://cla-rio.vercel.app)
+[Live Demo](https://cla-rio.vercel.app) | [GenLayer](https://genlayer.com) | Contract: `0xd8B3e7a0f8A3FFDA097bF3BB759b7a2e2f6A50FF`
 
-## Overview
+---
 
-Clario is a clinical note triage system built entirely on [GenLayer](https://genlayer.com). Every submission goes on-chain — GenLayer's AI validators independently classify and prioritize clinical notes through Optimistic Democracy consensus. No external backend, no database — the GenLayer Intelligent Contract is the only backend.
+## What is Clario?
 
-### How It Works
+Clario is an administrative triage system for clinical notes, built entirely on a GenLayer Intelligent Contract. There is no backend server or database — the contract is the single source of truth. GenLayer's AI validators independently classify each note through Optimistic Democracy consensus, producing explainable, auditable decisions.
 
-1. **Submit** — A clinician submits a clinical note through the web interface
-2. **Hash** — The note content is hashed (SHA-256) client-side for integrity verification
-3. **AI Classification** — The GenLayer Intelligent Contract runs `gl.exec_prompt()` to classify the note (Emergency / Urgent / Same-Day / Routine / Administrative)
-4. **Validator Consensus** — Multiple independent validators run the same classification. Results are compared using `gl.eq_principle.prompt_comparative()` — category must match and priority scores must be within 15 points
-5. **Assessment Stored** — The consensus assessment (category, priority score, confidence, reasoning) is stored on-chain
-6. **Human Review** — Notes with low confidence or critical keywords are flagged for human review
-7. **Challenge** — Any stakeholder can challenge a decision with evidence, triggering AI-assisted re-evaluation through a new consensus round
+> Clario **never** diagnoses patients or recommends treatment. It only prioritizes notes for administrative routing.
 
-### Key Features
+## How It Works
 
-- **100% On-Chain** — No external backend. The GenLayer Intelligent Contract stores all state and runs all logic
-- **On-Chain AI Triage** — All classification happens inside the contract via `gl.exec_prompt()`, not through external AI APIs
-- **Validator Consensus** — Multiple independent LLM validators analyze each note; decisions require agreement on category and similar priority scores
-- **Challenge System** — Challenge any triage decision with evidence, triggering on-chain AI re-evaluation
-- **Privacy-First** — Only hashes, classifications, votes, and audit events go on-chain. No PHI is ever stored on-chain
-- **Auto-Generated Wallet** — No MetaMask needed. Wallets are auto-generated in the browser. StudioNet is gasless
-- **Full Audit Trail** — Every submission, assessment, vote, and challenge is permanently recorded on-chain
+```
+Clinician submits note → SHA-256 hash computed client-side
+    → Contract receives note → gl.exec_prompt() classifies it
+    → Multiple validators reach consensus via prompt_comparative()
+    → Assessment stored on-chain (category, priority, confidence, reasoning)
+    → Human review auto-triggered for critical/low-confidence cases
+    → Any stakeholder can challenge → AI re-evaluates through new consensus
+```
+
+## GenLayer Capabilities
+
+| Feature | GenLayer Primitive | What It Does |
+|---|---|---|
+| AI Classification | `gl.nondet.exec_prompt()` | Classifies notes into Emergency / Urgent / Same-Day / Routine / Administrative |
+| Validator Consensus | `gl.eq_principle.prompt_comparative()` | Compares assessments across validators — category must match, priority within 15 pts |
+| On-Chain State | `TreeMap[str, str]`, `DynArray[str]` | Stores notes, assessments, challenges, roles, and full audit log |
+| Identity & Access | `gl.message.sender_address` | Wallet-based RBAC — submitter, reviewer, validator, admin |
+| Timestamps | `gl.message_raw["datetime"]` | Immutable on-chain timestamps for every event |
+| Non-Determinism | Nondet blocks | AI execution with built-in consensus validation |
 
 ## Architecture
 
 ```
-User → Next.js Frontend → GenLayer Intelligent Contract (StudioNet)
-                                    ↓
-                           Validator Consensus (LLM × N)
-                                    ↓
-                           On-Chain Assessment + Audit Trail
-                                    ↓
-                           Frontend reads contract state
+┌─────────────────┐         ┌──────────────────────────────────┐
+│   Next.js 15    │ ──────▶ │   GenLayer Intelligent Contract  │
+│   Frontend      │ ◀────── │   (StudioNet - Gasless)          │
+│                 │         │                                  │
+│ • Auto wallet   │         │ • AI triage via gl.exec_prompt() │
+│ • TanStack Query│         │ • Consensus validation           │
+│ • Tailwind/shad │         │ • Role-based access control      │
+└─────────────────┘         │ • Immutable audit trail          │
+                            │ • Challenge/dispute system       │
+                            └──────────────────────────────────┘
 ```
 
-The GenLayer Intelligent Contract is the **single source of truth**. There is no database — the frontend reads directly from the contract.
+No database, no Firebase, no Supabase, no external AI APIs. The frontend talks directly to the contract.
 
-### Tech Stack
+## Contract Methods
 
-- **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui
-- **State Management:** TanStack Query (contract reads with auto-refresh)
-- **Blockchain:** GenLayer Intelligent Contract on StudioNet (gasless)
-- **AI:** GenLayer LLMs only — no OpenAI, no external AI services
-- **Wallet:** Auto-generated via genlayer-js SDK, stored in localStorage
+**Write Methods:**
 
-## Getting Started
+| Method | Description |
+|---|---|
+| `submit_note(note_hash, text)` | Submit note for AI classification + validator consensus |
+| `challenge_decision(note_hash, reason, evidence)` | Dispute an assessment — opens on-chain challenge |
+| `resolve_challenge(challenge_id, resolution)` | AI re-evaluates via new consensus round |
+| `finalize_review(note_hash, category)` | Human reviewer finalizes flagged notes |
+| `grant_role(address, role)` / `revoke_role(address)` | Admin role management |
+| `update_protocol(version, description)` | Protocol versioning |
 
-### Prerequisites
+**View Methods:**
 
-- Node.js 20+
-- GenLayer contract deployed to StudioNet
+| Method | Description |
+|---|---|
+| `get_all_notes()` | All notes + assessments (single call) |
+| `get_all_challenges()` | All disputes |
+| `get_all_audit_logs()` | Complete audit trail |
+| `get_note(hash)` / `get_assessment(hash)` | Single lookups |
+| `get_role(address)` | Check on-chain role |
 
-### Installation
+## Key Design Decisions
+
+- **`prompt_comparative` over `strict_eq`** — Different validators produce different JSON formatting. The comparative prompt checks semantic equivalence (same category + priority within 15 points) rather than string equality.
+- **Critical keyword detection** — Notes containing terms like "chest pain", "severe bleeding", "stroke symptoms", "suicidal thoughts", "breathing difficulties", or "loss of consciousness" are auto-flagged for human review regardless of AI confidence.
+- **Auto-generated wallets** — No MetaMask or external wallet needed. A wallet is created in-browser on first visit and stored in localStorage. StudioNet is gasless, so all interactions are free.
+- **Batch view methods** — `get_all_notes()` returns every note + assessment in a single `readContract` call, keeping the dashboard fast with minimal RPC overhead.
+
+## Privacy & Security
+
+- **No PHI on-chain** — Only hashes, classifications, and audit events are stored. Raw notes exist only in the browser during submission.
+- **No external AI** — All AI processing runs inside the GenLayer contract. No OpenAI, no third-party APIs.
+- **Role-based access** — The contract enforces submitter / reviewer / validator / admin permissions.
+- **Gasless** — StudioNet requires no tokens or funding.
+
+## Quick Start
 
 ```bash
 git clone https://github.com/Olawalter/cla-rio.git
@@ -65,138 +96,45 @@ cd cla-rio/apps/web
 npm install
 ```
 
-### Environment Variables
-
-Create `apps/web/.env.local`:
+Create `.env.local`:
 
 ```env
 NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS=0xd8B3e7a0f8A3FFDA097bF3BB759b7a2e2f6A50FF
 NEXT_PUBLIC_GENLAYER_CHAIN=studionet
 ```
 
-### Development
-
 ```bash
-cd apps/web
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-### Production Build
-
-```bash
-npm run build
+npm run dev        # http://localhost:3000
+npm run build      # Production build
 ```
 
 ## Project Structure
 
 ```
-cla-rio/
-├── apps/web/                 # Next.js application
-│   ├── src/
-│   │   ├── app/              # App Router pages
-│   │   │   ├── (dashboard)/  # Dashboard, Submit, Notes, Profile, Validator, Admin
-│   │   │   └── page.tsx      # Landing page
-│   │   ├── hooks/            # Custom React hooks
-│   │   │   ├── use-submit-note.ts      # On-chain submission flow
-│   │   │   ├── use-wallet.ts           # Auto-generated wallet management
-│   │   │   ├── use-contract.ts         # Contract read/write hooks
-│   │   │   └── use-challenge-decision.ts
-│   │   ├── lib/              # Utilities (hashing, formatting)
-│   │   └── services/         # GenLayer client
-│   └── package.json
-├── contracts/                # GenLayer Intelligent Contract (Python)
-│   └── clario.py
-└── README.md
+├── contracts/clario.py              # GenLayer Intelligent Contract (entire backend)
+├── apps/web/src/
+│   ├── app/
+│   │   ├── page.tsx                 # Landing page
+│   │   └── (dashboard)/             # Dashboard, Submit, Notes, Profile, Validator, Admin
+│   ├── hooks/
+│   │   ├── use-contract.ts          # Contract read/write hooks
+│   │   ├── use-submit-note.ts       # Submission flow orchestration
+│   │   ├── use-wallet.ts            # Auto-generated wallet
+│   │   └── use-challenge-decision.ts
+│   ├── services/genlayer/client.ts  # GenLayer SDK client
+│   └── lib/utils.ts                 # Hashing, formatting utilities
 ```
 
-## GenLayer Intelligent Contract
+## Tech Stack
 
-The contract (`contracts/clario.py`) is the entire backend. All AI processing, state storage, and access control happen inside it.
-
-### GenLayer Capabilities Used
-
-| Capability | Usage |
-|-----------|-------|
-| `gl.exec_prompt()` | AI-powered clinical note classification inside nondet blocks |
-| `gl.eq_principle.prompt_comparative()` | Consensus validation — compares assessments across validators |
-| `TreeMap[str, str]` | Key-value storage for notes, assessments, challenges, roles |
-| `DynArray[str]` | Ordered lists for note hashes, challenge IDs, audit log |
-| `gl.message.sender_address` | Wallet-based identity and role-based access control |
-| `gl.message_raw["datetime"]` | On-chain timestamps for audit trail |
-| Nondet blocks | Non-deterministic AI execution with validator consensus |
-
-### Contract Methods
-
-| Method | Type | Description |
-|--------|------|-------------|
-| `submit_note(note_hash, de_identified_text)` | Write | Submits a note for AI classification through validator consensus |
-| `challenge_decision(note_hash, reason, evidence)` | Write | Opens a dispute against an existing assessment |
-| `resolve_challenge(challenge_id, resolution)` | Write | AI re-evaluates the challenged decision through consensus |
-| `finalize_review(note_hash, final_category)` | Write | Human reviewer finalizes a flagged note |
-| `grant_role(address, role)` / `revoke_role(address)` | Write | Admin role management |
-| `update_protocol(version, description)` | Write | Update protocol version |
-| `get_all_notes()` | View | Returns all notes with assessments (JSON) |
-| `get_all_challenges()` | View | Returns all challenges (JSON) |
-| `get_all_audit_logs()` | View | Returns full audit trail (JSON) |
-| `get_assessment(note_hash)` / `get_note(note_hash)` | View | Single item lookups |
-| `get_role(address)` | View | Check on-chain role |
-
-### Consensus Model
-
-The contract uses `gl.eq_principle.prompt_comparative()` for consensus — not `strict_eq`, because different validator LLMs produce different JSON formatting. The comparative prompt checks:
-- Same category (exact match)
-- Priority scores within 15 points of each other
-- Minor wording differences in reasoning are acceptable
-
-### Critical Keywords
-
-Notes containing critical keywords (chest pain, severe bleeding, stroke symptoms, suicidal thoughts, breathing difficulties, loss of consciousness) are automatically flagged for human review regardless of AI confidence.
-
-**Contract Address (StudioNet):** `0xd8B3e7a0f8A3FFDA097bF3BB759b7a2e2f6A50FF`
-
-## On-Chain Submission Flow
-
-```
-hashNote(content)  →  writeContract("submit_note")
-                              ↓
-                    Validators run gl.exec_prompt()
-                    Consensus via prompt_comparative()
-                              ↓
-                    waitForTransactionReceipt()
-                    (1-3 minutes for consensus)
-                              ↓
-                    readContract("get_assessment")
-                              ↓
-                    Display results in UI
-```
-
-The frontend (`use-submit-note.ts`) orchestrates this flow with real-time step indicators:
-- Computing note hash...
-- Submitting to GenLayer intelligent contract...
-- Awaiting GenLayer validator consensus (1-3 minutes)...
-- Reading on-chain assessment...
-
-## Security
-
-- **No PHI On-Chain** — Only hashes, classifications, and audit events are stored on-chain. Raw clinical notes exist only in the browser during submission
-- **No External AI** — All AI processing runs inside the GenLayer contract. No OpenAI, no third-party APIs
-- **Administrative Only** — Clario classifies notes for routing. It does NOT diagnose patients or recommend treatment
-- **Auto-Generated Wallets** — Created in-browser via genlayer-js SDK. Private keys stored in localStorage, never transmitted
-- **Role-Based Access** — Contract enforces submitter/reviewer/validator/admin permissions on-chain
-- **Gasless** — StudioNet is gasless, so all interactions are free
-
-## Deployment
-
-Deployed on Vercel with GenLayer StudioNet:
-
-```bash
-cd apps/web
-vercel --prod
-```
-
-Set `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS` and `NEXT_PUBLIC_GENLAYER_CHAIN=studionet` in Vercel project settings.
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15, TypeScript, Tailwind CSS, shadcn/ui |
+| State | TanStack Query (15s auto-refresh from contract) |
+| Blockchain | GenLayer Intelligent Contract on StudioNet |
+| AI | GenLayer LLMs only (via `gl.exec_prompt()`) |
+| Wallet | genlayer-js SDK (auto-generated, localStorage) |
+| Deployment | Vercel |
 
 ## License
 

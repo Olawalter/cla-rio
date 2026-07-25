@@ -206,6 +206,28 @@ npm run lint       # Lint
 - **Mobile wallet support** — WalletConnect integration for mobile-first clinical workflows
 - **Mainnet deployment** — migrate to GenLayer mainnet when available, with token-gated access for hospitals
 
+## Live On-Chain Proof
+
+Full end-to-end flow executed on StudioNet — all transactions verifiable on [GenLayer Studio](https://studio.genlayer.com):
+
+| Step | Method | Transaction Hash |
+|---|---|---|
+| Register hospital | `register_hospital` | [`0x832790f0...`](https://studio.genlayer.com/transactions/0x832790f04d1d1940253670e558697514d5829d16198ac005a422d5e38acf2f14) |
+| Register clinician | `register_staff` | [`0xeb8431fa...`](https://studio.genlayer.com/transactions/0xeb8431fadd2eaf8e53ee4e65c8f9addf0e30333a32fb07f0ae514d054df5a07c) |
+| Submit case (AI triage) | `submit_case` | [`0x40587852...`](https://studio.genlayer.com/transactions/0x4058785252071cbea4318a2d1b12e6127b61af143a7b825c0dff50646f6fe74f) |
+| Request manual review | `request_manual_review` | [`0x70c2fe4c...`](https://studio.genlayer.com/transactions/0x70c2fe4cce7ecbb3211384b3e20d9568317321988cd51b0626a5ced9e18a5ee2) |
+| Submit review decision | `submit_manual_review` | [`0x30e32fa4...`](https://studio.genlayer.com/transactions/0x30e32fa402d1a862ee79cfe274feae87d1ea3f8389361513f9d7a47b4844b30a) |
+| Challenge + re-triage | `challenge_decision` | [`0x32d43e27...`](https://studio.genlayer.com/transactions/0x32d43e274d261453efa8e392d1f82d45fca683213535dddade8618e3aed030c0) |
+| Finalize case | `finalize_case` | [`0x59bec039...`](https://studio.genlayer.com/transactions/0x59bec0397e3ee3a47043d64d25935892f8442c78782d3c1846ceaea489a78e6c) |
+
+**AI triage result for a chest pain / ST-elevation note:**
+- Category: **Emergency** — Priority: **98/100**
+- Routing: *"Immediate routing to Emergency Cardiology and On-call STEMI team"*
+- After challenge re-evaluation: Priority upgraded to **100/100**
+- 13 immutable audit entries written across the full lifecycle
+
+Contract: `0xF0694dDDD20878f83992DeB7E4Cf2C5102fBFD4A` on StudioNet
+
 ## Submission Notes
 
 Clario addresses a real trust gap in healthcare administration: AI-assisted triage systems today either run on centralized servers (no accountability, no audit trail) or require PHI to leave the organization's control. Neither is acceptable in clinical settings.

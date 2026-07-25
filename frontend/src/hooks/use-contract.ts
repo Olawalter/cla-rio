@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getAddress } from "viem";
 import { useWallet } from "./use-wallet";
 import { CONTRACT_ADDRESS } from "@/config/contract";
 import { createReadOnlyClient } from "@/config/genlayer-client";
@@ -175,18 +176,22 @@ export function useGetCase(caseId: string) {
 }
 
 export function useGetRole(address: string) {
+  let checksummed = "";
+  try {
+    checksummed = address ? getAddress(address) : "";
+  } catch {}
   return useQuery({
-    queryKey: ["contract", "get_role", address],
+    queryKey: ["contract", "get_role", checksummed],
     queryFn: async () => {
       const client = createReadOnlyClient();
       const result = await client.readContract({
         address: addr(),
         functionName: "get_role",
-        args: [address],
+        args: [checksummed],
       });
       return (result as string) || "";
     },
-    enabled: !!address,
+    enabled: !!checksummed,
     staleTime: 0,
     refetchOnMount: true,
     retry: 3,

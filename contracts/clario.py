@@ -1,690 +1,422 @@
-# v0.3.0
-# { "Depends": "py-genlayer:9b8kjyda2ycxyq4ea6g4yfpnydxhd52gqba5rb8dw7krkh5mn9p0" }
+# v.0.2.17
+# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 
 import genlayer as gl
-from genlayer.types import *
+import genlayer.gl as glm
 import json
 
-# ---------------------------------------------------------------------------
-# Clario — Decentralized Clinical Note Triage
-#
-# GenLayer Intelligent Contract — sole backend for Clario.
-# Privacy: NO PHI stored. Only sanitized text, hashes, classifications,
-# and audit metadata. Browser-side redaction strips PII before submission.
-#
-# This contract NEVER diagnoses patients or recommends treatment.
-# It only assists administrative workflow prioritization.
-# ---------------------------------------------------------------------------
 
-STATUS_DRAFT = "draft"
-STATUS_SUBMITTED = "submitted"
-STATUS_PENDING_CONSENSUS = "pending_consensus"
-STATUS_CONSENSUS_COMPLETE = "consensus_complete"
-STATUS_MANUAL_REVIEW = "manual_review"
-STATUS_CHALLENGED = "challenged"
-STATUS_FINALIZED = "finalized"
-STATUS_ARCHIVED = "archived"
-
-ROLE_HOSPITAL_ADMIN = "hospital_admin"
-ROLE_CLINICIAN = "clinician"
-ROLE_REVIEWER = "reviewer"
-ROLE_AUDITOR = "auditor"
-
-VALID_ROLES = [ROLE_HOSPITAL_ADMIN, ROLE_CLINICIAN, ROLE_REVIEWER, ROLE_AUDITOR]
-VALID_CATEGORIES = ["emergency", "urgent", "same_day", "routine", "administrative"]
-
-CRITICAL_KEYWORDS = [
-    "chest pain", "severe bleeding", "stroke symptoms",
-    "suicidal thoughts", "breathing difficulties", "loss of consciousness",
-    "cardiac arrest", "anaphylaxis", "seizure", "unconscious",
-]
-
-
-class Clario(gl.contract.Contract):
+class Clario(glm.Contract):
     owner: str
-    hospitals: TreeMap[str, str]
-    hospital_list: DynArray[str]
-    staff: TreeMap[str, str]
-    staff_list: DynArray[str]
-    roles: TreeMap[str, str]
-    cases: TreeMap[str, str]
-    case_ids: DynArray[str]
-    case_counter: u64
-    challenges: TreeMap[str, str]
-    challenge_ids: DynArray[str]
-    challenge_counter: u64
-    manual_reviews: TreeMap[str, str]
-    audit_log: DynArray[str]
     protocol_version: str
 
+    hospitals: gl.TreeMap[str, str]
+    hospital_count: gl.u64
+    hospital_list: gl.TreeMap[gl.u64, str]
+
+    staff: gl.TreeMap[str, str]
+    staff_count: gl.u64
+    staff_list: gl.TreeMap[gl.u64, str]
+
+    roles: gl.TreeMap[str, str]
+
+    cases: gl.TreeMap[str, str]
+    case_count: gl.u64
+    case_list: gl.TreeMap[gl.u64, str]
+
+    challenges: gl.TreeMap[str, str]
+    challenge_count: gl.u64
+    challenge_list: gl.TreeMap[gl.u64, str]
+
+    manual_reviews: gl.TreeMap[str, str]
+
+    audit_log: gl.TreeMap[gl.u64, str]
+    audit_count: gl.u64
+
     def __init__(self) -> None:
-        self.owner = gl.message.sender_address.as_hex
+        self.owner = str(glm.message.sender_address)
         self.protocol_version = "2.0.0"
-        self.case_counter = u64(0)
-        self.challenge_counter = u64(0)
-        self.roles[self.owner] = ROLE_HOSPITAL_ADMIN
-        self._log_audit("contract_deployed", "", self.owner, {"protocol_version": "2.0.0"})
+        self.case_count = gl.u64(0)
+        self.challenge_count = gl.u64(0)
+        self.hospital_count = gl.u64(0)
+        self.staff_count = gl.u64(0)
+        self.audit_count = gl.u64(0)
+        self.roles[self.owner] = "hospital_admin"
+        self._log("contract_deployed", "", self.owner, "{}")
 
-    # -----------------------------------------------------------------------
-    # Hospital Registration
-    # -----------------------------------------------------------------------
+    # ── Helpers ────────────────────────────────────────────────────────────────
 
-    @gl.public.write
-    def register_hospital(self, name: str, identifier: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        ts = self._timestamp()
-        self.hospitals[caller] = json.dumps({
-            "address": caller,
-            "name": name,
-            "identifier": identifier,
-            "registered_at": ts,
-            "active": True,
+    def _log(self, event_type: str, entity_id: str, actor: str, data: str) -> None:
+        idx = self.audit_count
+        entry = json.dumps({
+            "event_type": event_type,
+            "entity_id": entity_id,
+            "actor": actor,
+            "data": data,
+            "timestamp": "",
         })
-        self.hospital_list.append(caller)
-        if self.roles.get(caller, "") == "":
-            self.roles[caller] = ROLE_HOSPITAL_ADMIN
-        self._log_audit("hospital_registered", "", caller, {"name": name, "identifier": identifier})
+        self.audit_log[idx] = entry
+        self.audit_count = gl.u64(int(self.audit_count) + 1)
 
-    # -----------------------------------------------------------------------
-    # Staff Registration & Role Management
-    # -----------------------------------------------------------------------
+    def _sender(self) -> str:
+        return str(glm.message.sender_address)
 
-    @gl.public.write
-    def register_staff(self, name: str, department: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        ts = self._timestamp()
-        self.staff[caller] = json.dumps({
-            "address": caller,
-            "name": name,
-            "department": department,
-            "registered_at": ts,
-            "active": True,
-        })
-        self.staff_list.append(caller)
-        if self.roles.get(caller, "") == "":
-            self.roles[caller] = ROLE_CLINICIAN
-        self._log_audit("staff_registered", "", caller, {"name": name, "department": department})
+    def _role(self, addr: str) -> str:
+        r = self.roles.get(addr)
+        return r if r is not None else ""
 
-    @gl.public.write
-    def grant_role(self, address: str, role: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role != ROLE_HOSPITAL_ADMIN and caller != self.owner:
-            raise gl.vm.UserError("Only hospital_admin can grant roles")
-        if role not in VALID_ROLES:
-            raise gl.vm.UserError("Invalid role: " + role)
-        self.roles[address] = role
-        self._log_audit("role_granted", "", caller, {"target": address, "role": role})
+    # ── Hospital management ────────────────────────────────────────────────────
 
-    @gl.public.write
-    def revoke_role(self, address: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role != ROLE_HOSPITAL_ADMIN and caller != self.owner:
-            raise gl.vm.UserError("Only hospital_admin can revoke roles")
-        if address == self.owner:
-            raise gl.vm.UserError("Cannot revoke owner role")
-        old_role = self.roles.get(address, "")
-        self.roles[address] = ""
-        self._log_audit("role_revoked", "", caller, {"target": address, "previous_role": old_role})
+    @glm.public.write
+    def register_hospital(self, name: str) -> None:
+        sender = self._sender()
+        assert sender == self.owner, "only owner"
+        assert name, "name required"
+        assert self.hospitals.get(sender) is None, "already registered"
+        hospital = json.dumps({"name": name, "admin": sender, "active": True})
+        self.hospitals[sender] = hospital
+        idx = self.hospital_count
+        self.hospital_list[idx] = sender
+        self.hospital_count = gl.u64(int(self.hospital_count) + 1)
+        self._log("hospital_registered", sender, sender, json.dumps({"name": name}))
 
-    # -----------------------------------------------------------------------
-    # Case Submission & AI Triage
-    # -----------------------------------------------------------------------
-
-    @gl.public.write
-    def submit_case(
-        self,
-        note_hash: str,
-        sanitized_text: str,
-        department: str,
-        note_type: str,
-    ) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role not in (ROLE_CLINICIAN, ROLE_HOSPITAL_ADMIN, ROLE_REVIEWER):
-            raise gl.vm.UserError("Not authorized to submit cases")
-
-        ts = self._timestamp()
-        self.case_counter = u64(int(self.case_counter) + 1)
-        case_id = "CASE-" + str(int(self.case_counter)).zfill(6)
-
-        case_data = {
-            "case_id": case_id,
-            "note_hash": note_hash,
-            "sanitized_text": sanitized_text,
-            "department": department,
-            "note_type": note_type,
-            "submitter": caller,
-            "status": STATUS_SUBMITTED,
-            "priority": "",
-            "category": "",
-            "confidence": 0,
-            "reasoning": "",
-            "missing_info": "[]",
-            "routing_recommendation": "",
-            "human_review_required": False,
-            "human_review_reasons": "[]",
-            "critical_keywords_found": "[]",
-            "validator_agreement": "",
-            "appealable": True,
-            "created_at": ts,
-            "triage_started_at": "",
-            "triage_completed_at": "",
-            "manual_review_requested_at": "",
-            "manual_review_completed_at": "",
-            "challenge_created_at": "",
-            "challenge_resolved_at": "",
-            "finalized_at": "",
-            "archived_at": "",
-        }
-
-        self.cases[case_id] = json.dumps(case_data)
-        self.case_ids.append(case_id)
-        self._log_audit("case_submitted", case_id, caller, {
-            "note_hash": note_hash,
-            "department": department,
-            "note_type": note_type,
-        })
-
-        self._run_triage(case_id, sanitized_text, ts)
-
-    def _run_triage(self, case_id: str, text: str, ts: str) -> None:
-        case_data = json.loads(self.cases[case_id])
-        case_data["status"] = STATUS_PENDING_CONSENSUS
-        case_data["triage_started_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-
-        text_lower = text.lower()
-        found_keywords = [kw for kw in CRITICAL_KEYWORDS if kw in text_lower]
-        force_human_review = len(found_keywords) > 0
-
-        prompt = (
-            "You are a clinical administrative triage assistant. "
-            "You prioritize clinical notes for administrative routing only. "
-            "You NEVER diagnose patients. You NEVER recommend treatment.\n\n"
-            "Analyze this de-identified clinical note and provide an "
-            "administrative triage assessment.\n\n"
-            "NOTE:\n" + text + "\n\n"
-            "Respond with ONLY valid JSON, no markdown:\n"
-            '{"category":"<emergency|urgent|same_day|routine|administrative>",'
-            '"priority_score":<integer 1-100>,'
-            '"confidence":<integer 1-100>,'
-            '"reasoning":"<brief explanation of category choice>",'
-            '"missing_info":["<list of missing items if any>"],'
-            '"routing_recommendation":"<where to route this note>",'
-            '"human_review_required":<true or false>,'
-            '"human_review_reasons":["<reasons if review needed>"]}\n\n'
-            "Scoring guide:\n"
-            "- Emergency (80-100): life-threatening symptoms needing immediate admin action\n"
-            "- Urgent (60-79): worsening or moderate severity\n"
-            "- Same-Day (40-59): persistent issues needing same-day attention\n"
-            "- Routine (20-39): standard follow-ups, refills, stable conditions\n"
-            "- Administrative (1-19): scheduling, billing, records requests\n"
-            "- Set human_review_required=true if confidence < 85 or ambiguous"
-        )
-
-        kw_list = found_keywords
-        needs_review = force_human_review
-
-        def nondet():
-            res = gl.nondet.exec_prompt(prompt)
-            if isinstance(res, dict):
-                parsed = res
-            else:
-                cleaned = str(res).replace("```json", "").replace("```", "").strip()
-                parsed = json.loads(cleaned)
-            cat = parsed.get("category", "")
-            if cat not in VALID_CATEGORIES:
-                raise gl.vm.UserError("Invalid category: " + cat)
-            ps = parsed.get("priority_score", 0)
-            if not (isinstance(ps, int) and 1 <= ps <= 100):
-                raise gl.vm.UserError("priority_score out of range")
-            conf = parsed.get("confidence", 0)
-            if not (isinstance(conf, int) and 1 <= conf <= 100):
-                raise gl.vm.UserError("confidence out of range")
-            return json.dumps(parsed, sort_keys=True)
-
-        comparison_prompt = (
-            "Compare these two clinical triage assessments. "
-            "They are equivalent if they assign the same category AND "
-            "priority scores are within 15 points of each other. "
-            "Minor wording differences in reasoning are acceptable. "
-            "Answer ONLY 'True' if equivalent, 'False' if not."
-        )
-
-        result_str = gl.eq_principle.prompt_comparative(nondet, comparison_prompt)
-        result = json.loads(result_str)
-
-        if needs_review:
-            result["human_review_required"] = True
-            reasons = result.get("human_review_reasons", [])
-            if not isinstance(reasons, list):
-                reasons = []
-            reasons.append("Critical keywords detected: " + ", ".join(kw_list))
-            result["human_review_reasons"] = reasons
-
-        result["critical_keywords_found"] = kw_list
-
-        status = STATUS_MANUAL_REVIEW if result.get("human_review_required") else STATUS_CONSENSUS_COMPLETE
-
-        case_data = json.loads(self.cases[case_id])
-        case_data["status"] = status
-        case_data["category"] = result.get("category", "")
-        case_data["priority"] = str(result.get("priority_score", 0))
-        case_data["confidence"] = result.get("confidence", 0)
-        case_data["reasoning"] = result.get("reasoning", "")
-        case_data["missing_info"] = json.dumps(result.get("missing_info", []))
-        case_data["routing_recommendation"] = result.get("routing_recommendation", "")
-        case_data["human_review_required"] = result.get("human_review_required", False)
-        case_data["human_review_reasons"] = json.dumps(result.get("human_review_reasons", []))
-        case_data["critical_keywords_found"] = json.dumps(kw_list)
-        case_data["validator_agreement"] = "consensus"
-        case_data["triage_completed_at"] = ts
-        if status == STATUS_MANUAL_REVIEW:
-            case_data["manual_review_requested_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-
-        self._log_audit("triage_completed", case_id, "system", {
-            "category": result.get("category", ""),
-            "priority_score": result.get("priority_score", 0),
-            "confidence": result.get("confidence", 0),
-            "human_review_required": result.get("human_review_required", False),
-            "status": status,
-        })
-
-    # -----------------------------------------------------------------------
-    # Manual Review
-    # -----------------------------------------------------------------------
-
-    @gl.public.write
-    def request_manual_review(self, case_id: str, reason: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN, ROLE_CLINICIAN):
-            raise gl.vm.UserError("Not authorized")
-        if self.cases.get(case_id, "") == "":
-            raise gl.vm.UserError("Case not found")
-        case_data = json.loads(self.cases[case_id])
-        if case_data["status"] != STATUS_CONSENSUS_COMPLETE:
-            raise gl.vm.UserError("Case must be in consensus_complete status")
-
-        ts = self._timestamp()
-        case_data["status"] = STATUS_MANUAL_REVIEW
-        case_data["manual_review_requested_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("manual_review_requested", case_id, caller, {"reason": reason})
-
-    @gl.public.write
-    def submit_manual_review(
-        self,
-        case_id: str,
-        final_category: str,
-        review_notes: str,
-    ) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
-            raise gl.vm.UserError("Only reviewers or admins can submit manual reviews")
-        if self.cases.get(case_id, "") == "":
-            raise gl.vm.UserError("Case not found")
-        case_data = json.loads(self.cases[case_id])
-        if case_data["status"] != STATUS_MANUAL_REVIEW:
-            raise gl.vm.UserError("Case must be in manual_review status")
-        if final_category not in VALID_CATEGORIES:
-            raise gl.vm.UserError("Invalid category")
-
-        ts = self._timestamp()
-        review_key = case_id + "_review"
-        self.manual_reviews[review_key] = json.dumps({
-            "case_id": case_id,
-            "reviewer": caller,
-            "original_category": case_data["category"],
-            "final_category": final_category,
-            "review_notes": review_notes,
-            "reviewed_at": ts,
-        })
-
-        case_data["category"] = final_category
-        case_data["status"] = STATUS_FINALIZED
-        case_data["manual_review_completed_at"] = ts
-        case_data["finalized_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("manual_review_completed", case_id, caller, {
-            "original_category": case_data.get("category", ""),
-            "final_category": final_category,
-        })
-
-    # -----------------------------------------------------------------------
-    # Challenge / Dispute
-    # -----------------------------------------------------------------------
-
-    @gl.public.write
-    def challenge_decision(self, case_id: str, reason: str, evidence: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        if self.cases.get(case_id, "") == "":
-            raise gl.vm.UserError("Case not found")
-        case_data = json.loads(self.cases[case_id])
-        if case_data["status"] not in (STATUS_CONSENSUS_COMPLETE, STATUS_MANUAL_REVIEW, STATUS_FINALIZED):
-            raise gl.vm.UserError("Case not in a challengeable state")
-
-        ts = self._timestamp()
-        self.challenge_counter = u64(int(self.challenge_counter) + 1)
-        challenge_id = "CHG-" + str(int(self.challenge_counter)).zfill(6)
-
-        self.challenges[challenge_id] = json.dumps({
-            "challenge_id": challenge_id,
-            "case_id": case_id,
-            "challenger": caller,
-            "reason": reason,
-            "evidence": evidence,
-            "original_category": case_data["category"],
-            "original_priority": case_data["priority"],
-            "status": "open",
-            "resolution": "",
-            "new_category": "",
-            "upheld": False,
-            "created_at": ts,
-            "resolved_at": "",
-        })
-        self.challenge_ids.append(challenge_id)
-
-        case_data["status"] = STATUS_CHALLENGED
-        case_data["challenge_created_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("challenge_created", case_id, caller, {"challenge_id": challenge_id, "reason": reason})
-
-    @gl.public.write
-    def resolve_challenge(self, challenge_id: str, resolution_notes: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
-            raise gl.vm.UserError("Only reviewers or admins can resolve challenges")
-        if self.challenges.get(challenge_id, "") == "":
-            raise gl.vm.UserError("Challenge not found")
-
-        challenge = json.loads(self.challenges[challenge_id])
-        if challenge["status"] != "open":
-            raise gl.vm.UserError("Challenge already resolved")
-
-        case_id = challenge["case_id"]
-        case_data = json.loads(self.cases[case_id])
-        ts = self._timestamp()
-
-        resolve_prompt = (
-            "You are a clinical administrative triage reviewer. "
-            "Review this challenge to a previous triage decision.\n\n"
-            "ORIGINAL ASSESSMENT:\n"
-            "- Category: " + str(challenge["original_category"]) + "\n"
-            "- Priority: " + str(challenge["original_priority"]) + "\n"
-            "- Reasoning: " + str(case_data.get("reasoning", "")) + "\n\n"
-            "CHALLENGE:\n"
-            "- Reason: " + str(challenge["reason"]) + "\n"
-            "- Evidence: " + str(challenge["evidence"]) + "\n\n"
-            "REVIEWER NOTES: " + resolution_notes + "\n\n"
-            "DE-IDENTIFIED NOTE:\n" + case_data.get("sanitized_text", "") + "\n\n"
-            "Should the original category be upheld or changed? "
-            "Respond with ONLY valid JSON, no markdown:\n"
-            '{"upheld":true or false,'
-            '"new_category":"<emergency|urgent|same_day|routine|administrative>",'
-            '"explanation":"<brief explanation>"}\n\n'
-            "NEVER diagnose. NEVER recommend treatment."
-        )
-
-        def nondet():
-            res = gl.nondet.exec_prompt(resolve_prompt)
-            if isinstance(res, dict):
-                parsed = res
-            else:
-                cleaned = str(res).replace("```json", "").replace("```", "").strip()
-                parsed = json.loads(cleaned)
-            if not isinstance(parsed.get("upheld"), bool):
-                raise gl.vm.UserError("upheld must be boolean")
-            if parsed.get("new_category") not in VALID_CATEGORIES:
-                raise gl.vm.UserError("Invalid new_category")
-            return json.dumps(parsed, sort_keys=True)
-
-        comparison = (
-            "Compare these two challenge resolution outputs. "
-            "They are equivalent if they agree on 'upheld' (both true or both false) "
-            "AND assign the same 'new_category'. "
-            "Answer ONLY 'True' if equivalent, 'False' if not."
-        )
-
-        result_str = gl.eq_principle.prompt_comparative(nondet, comparison)
-        result = json.loads(result_str)
-
-        if result["upheld"]:
-            challenge["status"] = "rejected"
-            challenge["resolution"] = result.get("explanation", "")
-            challenge["upheld"] = True
-            case_data["status"] = STATUS_FINALIZED
-            case_data["finalized_at"] = ts
-        else:
-            challenge["status"] = "accepted"
-            challenge["resolution"] = result.get("explanation", "")
-            challenge["new_category"] = result["new_category"]
-            case_data["category"] = result["new_category"]
-            case_data["status"] = STATUS_CONSENSUS_COMPLETE
-            case_data["challenge_resolved_at"] = ts
-
-        challenge["resolved_at"] = ts
-        self.challenges[challenge_id] = json.dumps(challenge)
-        self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("challenge_resolved", case_id, caller, {
-            "challenge_id": challenge_id,
-            "upheld": result["upheld"],
-            "new_category": result.get("new_category", ""),
-        })
-
-    # -----------------------------------------------------------------------
-    # Finalization & Archival
-    # -----------------------------------------------------------------------
-
-    @gl.public.write
-    def finalize_case(self, case_id: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
-            raise gl.vm.UserError("Only reviewers or admins can finalize")
-        if self.cases.get(case_id, "") == "":
-            raise gl.vm.UserError("Case not found")
-        case_data = json.loads(self.cases[case_id])
-        if case_data["status"] != STATUS_CONSENSUS_COMPLETE:
-            raise gl.vm.UserError("Case must be in consensus_complete status to finalize")
-
-        ts = self._timestamp()
-        case_data["status"] = STATUS_FINALIZED
-        case_data["finalized_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("case_finalized", case_id, caller, {})
-
-    @gl.public.write
-    def archive_case(self, case_id: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        caller_role = self.roles.get(caller, "")
-        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
-            raise gl.vm.UserError("Only reviewers or admins can archive")
-        if self.cases.get(case_id, "") == "":
-            raise gl.vm.UserError("Case not found")
-        case_data = json.loads(self.cases[case_id])
-        if case_data["status"] != STATUS_FINALIZED:
-            raise gl.vm.UserError("Case must be finalized before archiving")
-
-        ts = self._timestamp()
-        case_data["status"] = STATUS_ARCHIVED
-        case_data["archived_at"] = ts
-        self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("case_archived", case_id, caller, {})
-
-    # -----------------------------------------------------------------------
-    # Protocol Management
-    # -----------------------------------------------------------------------
-
-    @gl.public.write
-    def update_protocol(self, version: str, description: str) -> None:
-        caller = gl.message.sender_address.as_hex
-        if caller != self.owner:
-            raise gl.vm.UserError("Only owner can update protocol")
-        old = self.protocol_version
-        self.protocol_version = version
-        self._log_audit("protocol_updated", "", caller, {
-            "old_version": old,
-            "new_version": version,
-            "description": description,
-        })
-
-    # -----------------------------------------------------------------------
-    # View Methods
-    # -----------------------------------------------------------------------
-
-    @gl.public.view
-    def get_case(self, case_id: str) -> str:
-        result = self.cases.get(case_id, "")
-        if result == "":
-            return json.dumps({"error": "Case not found"})
-        return result
-
-    @gl.public.view
-    def get_role(self, address: str) -> str:
-        return self.roles.get(address, "")
-
-    @gl.public.view
+    @glm.public.view
     def get_hospital(self, address: str) -> str:
-        result = self.hospitals.get(address, "")
-        if result == "":
-            return json.dumps({"error": "Hospital not found"})
-        return result
+        h = self.hospitals.get(address)
+        return h if h is not None else ""
 
-    @gl.public.view
+    # ── Staff management ───────────────────────────────────────────────────────
+
+    @glm.public.write
+    def register_staff(self, address: str, role: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+        valid_roles = ("clinician", "reviewer", "auditor", "hospital_admin")
+        assert role in valid_roles, "invalid role"
+        member = json.dumps({"address": address, "role": role, "registered_by": sender})
+        self.staff[address] = member
+        self.roles[address] = role
+        idx = self.staff_count
+        self.staff_list[idx] = address
+        self.staff_count = gl.u64(int(self.staff_count) + 1)
+        self._log("staff_registered", address, sender, json.dumps({"role": role}))
+
+    @glm.public.view
     def get_staff(self, address: str) -> str:
-        result = self.staff.get(address, "")
-        if result == "":
-            return json.dumps({"error": "Staff not found"})
-        return result
+        s = self.staff.get(address)
+        return s if s is not None else ""
 
-    @gl.public.view
-    def get_challenge(self, challenge_id: str) -> str:
-        result = self.challenges.get(challenge_id, "")
-        if result == "":
-            return json.dumps({"error": "Challenge not found"})
-        return result
+    # ── Role management ────────────────────────────────────────────────────────
 
-    @gl.public.view
-    def get_manual_review(self, case_id: str) -> str:
-        key = case_id + "_review"
-        result = self.manual_reviews.get(key, "")
-        if result == "":
-            return json.dumps({"error": "Manual review not found"})
-        return result
+    @glm.public.write
+    def grant_role(self, address: str, role: str, hospital: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+        self.roles[address] = role
+        self._log("role_granted", address, sender, json.dumps({"role": role, "hospital": hospital}))
 
-    @gl.public.view
-    def get_protocol_version(self) -> str:
-        return self.protocol_version
+    @glm.public.write
+    def revoke_role(self, address: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+        if self.roles.get(address) is not None:
+            del self.roles[address]
+        self._log("role_revoked", address, sender, "{}")
 
-    @gl.public.view
-    def get_owner(self) -> str:
-        return self.owner
+    @glm.public.view
+    def get_role(self, address: str) -> str:
+        return self._role(address)
 
-    @gl.public.view
+    # ── Case submission ────────────────────────────────────────────────────────
+
+    @glm.public.write
+    def submit_case(self, sanitized_text: str, text_hash: str, note_type: str, department: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("clinician", "hospital_admin", "owner"), "unauthorized"
+        assert sanitized_text, "text required"
+        assert text_hash, "hash required"
+
+        case_id = f"case_{int(self.case_count)}"
+
+        prompt = f"""You are an administrative triage system for clinical notes. You do NOT diagnose patients or recommend treatment. Your task is administrative routing only.
+
+Analyze the following clinical note and determine administrative priority:
+
+Note type: {note_type}
+Department: {department}
+Sanitized text (PHI removed): {sanitized_text}
+
+Classify this note for administrative routing. Respond ONLY in this exact JSON format:
+{{
+  "category": "Emergency|Urgent|Same-Day|Routine|Administrative",
+  "priority": <integer 1-100>,
+  "routing_recommendation": "<administrative routing action>",
+  "critical_keywords_found": ["<keyword1>", "<keyword2>"],
+  "reasoning": "<brief administrative reasoning>"
+}}
+
+Rules:
+- Emergency (priority 85-100): life-threatening indicators requiring immediate routing
+- Urgent (priority 60-84): time-sensitive but not immediately life-threatening
+- Same-Day (priority 40-59): needs attention today
+- Routine (priority 15-39): standard scheduling
+- Administrative (priority 1-14): billing, documentation, admin tasks only
+- Do NOT make clinical diagnoses
+- Do NOT recommend specific treatments or medications"""
+
+        def get_assessment():
+            result = glm.nondet.exec_prompt(prompt)
+            result = result.replace("```json", "").replace("```", "").strip()
+            return result
+
+        assessment_json = glm.eq_principle.prompt_comparative(
+            get_assessment,
+            "The category and priority level must match within 15 points. Routing recommendation must address the same urgency level."
+        )
+
+        try:
+            assessment = json.loads(assessment_json)
+        except Exception:
+            assessment = {
+                "category": "Routine",
+                "priority": 20,
+                "routing_recommendation": "Standard processing",
+                "critical_keywords_found": [],
+                "reasoning": "Could not parse AI response",
+            }
+
+        case = json.dumps({
+            "case_id": case_id,
+            "submitter": sender,
+            "sanitized_text": sanitized_text,
+            "text_hash": text_hash,
+            "note_type": note_type,
+            "department": department,
+            "status": "consensus_complete",
+            "category": assessment.get("category", "Routine"),
+            "priority": assessment.get("priority", 20),
+            "routing_recommendation": assessment.get("routing_recommendation", ""),
+            "critical_keywords_found": assessment.get("critical_keywords_found", []),
+            "reasoning": assessment.get("reasoning", ""),
+            "timestamp": "",
+        })
+        self.cases[case_id] = case
+        idx = self.case_count
+        self.case_list[idx] = case_id
+        self.case_count = gl.u64(int(self.case_count) + 1)
+        self._log("case_submitted", case_id, sender, json.dumps({
+            "category": assessment.get("category"),
+            "priority": assessment.get("priority"),
+        }))
+
+    # ── Case queries ──────────────────────────────────────────────────────────
+
+    @glm.public.view
+    def get_case(self, case_id: str) -> str:
+        c = self.cases.get(case_id)
+        return c if c is not None else ""
+
+    @glm.public.view
     def list_cases(self) -> str:
         result = []
-        for i in range(len(self.case_ids)):
-            cid = self.case_ids[i]
-            result.append(json.loads(self.cases[cid]))
+        count = int(self.case_count)
+        for i in range(count):
+            cid = self.case_list.get(gl.u64(i))
+            if cid is not None:
+                c = self.cases.get(cid)
+                if c is not None:
+                    result.append(json.loads(c))
         return json.dumps(result)
 
-    @gl.public.view
+    @glm.public.view
     def list_cases_by_status(self, status: str) -> str:
         result = []
-        for i in range(len(self.case_ids)):
-            cid = self.case_ids[i]
-            c = json.loads(self.cases[cid])
-            if c["status"] == status:
-                result.append(c)
+        count = int(self.case_count)
+        for i in range(count):
+            cid = self.case_list.get(gl.u64(i))
+            if cid is not None:
+                c = self.cases.get(cid)
+                if c is not None:
+                    case = json.loads(c)
+                    if case.get("status") == status:
+                        result.append(case)
         return json.dumps(result)
 
-    @gl.public.view
-    def list_cases_by_submitter(self, address: str) -> str:
-        result = []
-        for i in range(len(self.case_ids)):
-            cid = self.case_ids[i]
-            c = json.loads(self.cases[cid])
-            if c["submitter"] == address:
-                result.append(c)
-        return json.dumps(result)
+    # ── Manual review ─────────────────────────────────────────────────────────
 
-    @gl.public.view
+    @glm.public.write
+    def request_manual_review(self, case_id: str) -> None:
+        sender = self._sender()
+        c = self.cases.get(case_id)
+        assert c is not None, "case not found"
+        case = json.loads(c)
+        assert case.get("submitter") == sender or self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+        case["status"] = "manual_review_requested"
+        self.cases[case_id] = json.dumps(case)
+        self._log("manual_review_requested", case_id, sender, "{}")
+
+    @glm.public.write
+    def submit_manual_review(self, case_id: str, decision: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("reviewer", "hospital_admin", "owner"), "unauthorized"
+        c = self.cases.get(case_id)
+        assert c is not None, "case not found"
+        case = json.loads(c)
+        review = json.dumps({"case_id": case_id, "reviewer": sender, "decision": decision, "timestamp": ""})
+        self.manual_reviews[case_id] = review
+        case["status"] = "reviewed"
+        case["manual_review"] = decision
+        self.cases[case_id] = json.dumps(case)
+        self._log("manual_review_submitted", case_id, sender, json.dumps({"decision": decision}))
+
+    # ── Challenges ────────────────────────────────────────────────────────────
+
+    @glm.public.write
+    def challenge_decision(self, case_id: str, reason: str) -> None:
+        sender = self._sender()
+        c = self.cases.get(case_id)
+        assert c is not None, "case not found"
+        case = json.loads(c)
+        assert case.get("submitter") == sender or self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+
+        challenge_id = f"challenge_{int(self.challenge_count)}"
+
+        prompt = f"""You are re-evaluating an administrative triage decision that has been challenged.
+
+Original assessment: category={case.get('category')}, priority={case.get('priority')}
+Challenge reason: {reason}
+
+Re-assess administrative routing. Respond ONLY in this exact JSON format:
+{{
+  "category": "Emergency|Urgent|Same-Day|Routine|Administrative",
+  "priority": <integer 1-100>,
+  "routing_recommendation": "<administrative routing action>",
+  "challenge_outcome": "upheld|overturned",
+  "reasoning": "<brief explanation of re-evaluation>"
+}}"""
+
+        def get_challenge_assessment():
+            result = glm.nondet.exec_prompt(prompt)
+            result = result.replace("```json", "").replace("```", "").strip()
+            return result
+
+        reassessment_json = glm.eq_principle.prompt_comparative(
+            get_challenge_assessment,
+            "The category and challenge outcome must match. Priority within 15 points."
+        )
+
+        try:
+            reassessment = json.loads(reassessment_json)
+        except Exception:
+            reassessment = {
+                "category": case.get("category", "Routine"),
+                "priority": case.get("priority", 20),
+                "routing_recommendation": case.get("routing_recommendation", ""),
+                "challenge_outcome": "upheld",
+                "reasoning": "Could not parse re-evaluation",
+            }
+
+        challenge = json.dumps({
+            "challenge_id": challenge_id,
+            "case_id": case_id,
+            "challenger": sender,
+            "reason": reason,
+            "reassessment": reassessment,
+            "status": "resolved",
+            "timestamp": "",
+        })
+        self.challenges[challenge_id] = challenge
+        idx = self.challenge_count
+        self.challenge_list[idx] = challenge_id
+        self.challenge_count = gl.u64(int(self.challenge_count) + 1)
+
+        if reassessment.get("challenge_outcome") == "overturned":
+            case["category"] = reassessment.get("category", case.get("category"))
+            case["priority"] = reassessment.get("priority", case.get("priority"))
+            case["routing_recommendation"] = reassessment.get("routing_recommendation", case.get("routing_recommendation"))
+            case["reasoning"] = reassessment.get("reasoning", case.get("reasoning"))
+            case["status"] = "challenge_overturned"
+        else:
+            case["status"] = "challenge_upheld"
+
+        self.cases[case_id] = json.dumps(case)
+        self._log("challenge_resolved", challenge_id, sender, json.dumps({
+            "case_id": case_id,
+            "outcome": reassessment.get("challenge_outcome"),
+        }))
+
+    @glm.public.view
     def list_challenges(self) -> str:
         result = []
-        for i in range(len(self.challenge_ids)):
-            chid = self.challenge_ids[i]
-            result.append(json.loads(self.challenges[chid]))
+        count = int(self.challenge_count)
+        for i in range(count):
+            chid = self.challenge_list.get(gl.u64(i))
+            if chid is not None:
+                ch = self.challenges.get(chid)
+                if ch is not None:
+                    result.append(json.loads(ch))
         return json.dumps(result)
 
-    @gl.public.view
+    @glm.public.view
     def list_challenges_by_case(self, case_id: str) -> str:
         result = []
-        for i in range(len(self.challenge_ids)):
-            chid = self.challenge_ids[i]
-            c = json.loads(self.challenges[chid])
-            if c["case_id"] == case_id:
-                result.append(c)
+        count = int(self.challenge_count)
+        for i in range(count):
+            chid = self.challenge_list.get(gl.u64(i))
+            if chid is not None:
+                ch = self.challenges.get(chid)
+                if ch is not None:
+                    challenge = json.loads(ch)
+                    if challenge.get("case_id") == case_id:
+                        result.append(challenge)
         return json.dumps(result)
 
-    @gl.public.view
-    def list_hospitals(self) -> str:
-        result = []
-        for i in range(len(self.hospital_list)):
-            addr = self.hospital_list[i]
-            result.append(json.loads(self.hospitals[addr]))
-        return json.dumps(result)
+    # ── Finalization ──────────────────────────────────────────────────────────
 
-    @gl.public.view
-    def list_staff(self) -> str:
-        result = []
-        for i in range(len(self.staff_list)):
-            addr = self.staff_list[i]
-            result.append(json.loads(self.staff[addr]))
-        return json.dumps(result)
+    @glm.public.write
+    def finalize_case(self, case_id: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+        c = self.cases.get(case_id)
+        assert c is not None, "case not found"
+        case = json.loads(c)
+        case["status"] = "finalized"
+        case["finalized_by"] = sender
+        self.cases[case_id] = json.dumps(case)
+        self._log("case_finalized", case_id, sender, "{}")
 
-    @gl.public.view
+    @glm.public.write
+    def archive_case(self, case_id: str) -> None:
+        sender = self._sender()
+        assert self._role(sender) in ("hospital_admin", "owner"), "unauthorized"
+        c = self.cases.get(case_id)
+        assert c is not None, "case not found"
+        case = json.loads(c)
+        assert case.get("status") == "finalized", "must be finalized first"
+        case["status"] = "archived"
+        self.cases[case_id] = json.dumps(case)
+        self._log("case_archived", case_id, sender, "{}")
+
+    # ── Audit ─────────────────────────────────────────────────────────────────
+
+    @glm.public.view
     def audit_history(self) -> str:
         result = []
-        for i in range(len(self.audit_log)):
-            result.append(json.loads(self.audit_log[i]))
+        count = int(self.audit_count)
+        for i in range(count):
+            entry = self.audit_log.get(gl.u64(i))
+            if entry is not None:
+                result.append(json.loads(entry))
         return json.dumps(result)
 
-    @gl.public.view
+    @glm.public.view
     def audit_history_by_case(self, case_id: str) -> str:
         result = []
-        for i in range(len(self.audit_log)):
-            entry = json.loads(self.audit_log[i])
-            if entry.get("case_id") == case_id:
-                result.append(entry)
+        count = int(self.audit_count)
+        for i in range(count):
+            entry = self.audit_log.get(gl.u64(i))
+            if entry is not None:
+                e = json.loads(entry)
+                if e.get("entity_id") == case_id:
+                    result.append(e)
         return json.dumps(result)
-
-    @gl.public.view
-    def case_count(self) -> u64:
-        return self.case_counter
-
-    @gl.public.view
-    def challenge_count(self) -> u64:
-        return self.challenge_counter
-
-    # -----------------------------------------------------------------------
-    # Internal Helpers
-    # -----------------------------------------------------------------------
-
-    def _timestamp(self) -> str:
-        return ""
-
-    def _log_audit(self, event_type: str, case_id: str, actor: str, details: dict) -> None:
-        ts = self._timestamp()
-        self.audit_log.append(json.dumps({
-            "event_type": event_type,
-            "case_id": case_id,
-            "actor": actor,
-            "details": json.dumps(details),
-            "timestamp": ts,
-        }))

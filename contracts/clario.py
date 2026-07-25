@@ -72,18 +72,30 @@ class Clario(glm.Contract):
         sender = self._sender()
         assert sender == self.owner, "only owner"
         assert name, "name required"
-        assert self.hospitals.get(sender) is None, "already registered"
-        hospital = json.dumps({"name": name, "admin": sender, "active": True})
-        self.hospitals[sender] = hospital
+        hospital_id = f"hospital_{int(self.hospital_count)}"
+        hospital = json.dumps({"id": hospital_id, "name": name, "admin": sender, "active": True})
+        self.hospitals[hospital_id] = hospital
         idx = self.hospital_count
-        self.hospital_list[idx] = sender
+        self.hospital_list[idx] = hospital_id
         self.hospital_count = gl.u64(int(self.hospital_count) + 1)
-        self._log("hospital_registered", sender, sender, json.dumps({"name": name}))
+        self._log("hospital_registered", hospital_id, sender, json.dumps({"name": name}))
 
     @glm.public.view
-    def get_hospital(self, address: str) -> str:
-        h = self.hospitals.get(address)
+    def get_hospital(self, hospital_id: str) -> str:
+        h = self.hospitals.get(hospital_id)
         return h if h is not None else ""
+
+    @glm.public.view
+    def list_hospitals(self) -> str:
+        result = []
+        count = int(self.hospital_count)
+        for i in range(count):
+            hid = self.hospital_list.get(gl.u64(i))
+            if hid is not None:
+                h = self.hospitals.get(hid)
+                if h is not None:
+                    result.append(json.loads(h))
+        return json.dumps(result)
 
     # ── Staff management ───────────────────────────────────────────────────────
 

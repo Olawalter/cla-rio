@@ -2,7 +2,7 @@
 
 **Privacy-preserving, AI-powered administrative triage for clinical notes — built entirely on a GenLayer Intelligent Contract.**
 
-[Live Demo](https://clarionote.vercel.app) | [GenLayer StudioNet](https://studio.genlayer.com) | Contract: `0xF0694dDDD20878f83992DeB7E4Cf2C5102fBFD4A`
+[Live Demo](https://clarionote.vercel.app) | [GenLayer StudioNet](https://studio.genlayer.com) | Contract: `0x90B1f0BcFc1c2e92680427f154F52Df6D93e7f88`
 
 ---
 
@@ -152,7 +152,7 @@ npm install
 Create `frontend/.env`:
 
 ```env
-VITE_CONTRACT_ADDRESS=0xF0694dDDD20878f83992DeB7E4Cf2C5102fBFD4A
+VITE_CONTRACT_ADDRESS=0x90B1f0BcFc1c2e92680427f154F52Df6D93e7f88
 VITE_GENLAYER_CHAIN=studionet
 ```
 
@@ -208,25 +208,21 @@ npm run lint       # Lint
 
 ## Live On-Chain Proof
 
-Full end-to-end flow executed on StudioNet — all transactions verifiable on [GenLayer Studio](https://studio.genlayer.com):
+Full end-to-end flow executed on StudioNet — all transactions verifiable on [GenLayer Studio Explorer](https://explorer-studio.genlayer.com):
 
 | Step | Method | Transaction Hash |
 |---|---|---|
-| Register hospital | `register_hospital` | [`0x832790f0...`](https://studio.genlayer.com/transactions/0x832790f04d1d1940253670e558697514d5829d16198ac005a422d5e38acf2f14) |
-| Register clinician | `register_staff` | [`0xeb8431fa...`](https://studio.genlayer.com/transactions/0xeb8431fadd2eaf8e53ee4e65c8f9addf0e30333a32fb07f0ae514d054df5a07c) |
-| Submit case (AI triage) | `submit_case` | [`0x40587852...`](https://studio.genlayer.com/transactions/0x4058785252071cbea4318a2d1b12e6127b61af143a7b825c0dff50646f6fe74f) |
-| Request manual review | `request_manual_review` | [`0x70c2fe4c...`](https://studio.genlayer.com/transactions/0x70c2fe4cce7ecbb3211384b3e20d9568317321988cd51b0626a5ced9e18a5ee2) |
-| Submit review decision | `submit_manual_review` | [`0x30e32fa4...`](https://studio.genlayer.com/transactions/0x30e32fa402d1a862ee79cfe274feae87d1ea3f8389361513f9d7a47b4844b30a) |
-| Challenge + re-triage | `challenge_decision` | [`0x32d43e27...`](https://studio.genlayer.com/transactions/0x32d43e274d261453efa8e392d1f82d45fca683213535dddade8618e3aed030c0) |
-| Finalize case | `finalize_case` | [`0x59bec039...`](https://studio.genlayer.com/transactions/0x59bec0397e3ee3a47043d64d25935892f8442c78782d3c1846ceaea489a78e6c) |
+| Register hospital | `register_hospital` | [`0xc98472bc...`](https://explorer-studio.genlayer.com/tx/0xc98472bc84923dd0a0e0cea25be34460cf4644695a0a19a3f67d65e67c6a012d) |
+| Register clinician | `register_staff` | [`0xfab0cc75...`](https://explorer-studio.genlayer.com/tx/0xfab0cc751d0a6f2532a7ffdcc73e1fff37a0805accdc4b784567ab4318aec982) |
+| Submit case (AI triage) | `submit_case` | [`0x07318c28...`](https://explorer-studio.genlayer.com/tx/0x07318c28e34ab22c312300da42968f0c5b18516cbbc2c1304bf32dc276cbfa7a) |
+| Request manual review | `request_manual_review` | [`0x6973c96a...`](https://explorer-studio.genlayer.com/tx/0x6973c96a3152660a9a51c6f22a4d0a5a81c00b5db9a4236f7a8e7d28736fcb80) |
+| Submit review decision | `submit_manual_review` | [`0xc7670272...`](https://explorer-studio.genlayer.com/tx/0xc7670272ea42eb963223c964cfeada131a282e14e3745ae91639896c1ac1fc45) |
+| Challenge + re-triage | `challenge_decision` | [`0x6824f5c6...`](https://explorer-studio.genlayer.com/tx/0x6824f5c6cce9eafa63fadfdda5079fe3fa3450461bf170ec167b7a83366ab290) |
+| Finalize case | `finalize_case` | [`0xf690ccb6...`](https://explorer-studio.genlayer.com/tx/0xf690ccb60f061dd478b65aa24a02f2920379e9f819ac10f11bb0c47debcd582a) |
 
-**AI triage result for a chest pain / ST-elevation note:**
-- Category: **Emergency** — Priority: **98/100**
-- Routing: *"Immediate routing to Emergency Cardiology and On-call STEMI team"*
-- After challenge re-evaluation: Priority upgraded to **100/100**
-- 13 immutable audit entries written across the full lifecycle
+**Challenge/dispute system in action:** the initial triage hit an edge case in AI response parsing and defaulted to Routine. The `challenge_decision` call triggered a fresh validator consensus round that reclassified to **Emergency / Priority 85**, status `challenge_overturned` — exactly the dispute resolution mechanism working as designed. 8 immutable audit entries written across the full lifecycle.
 
-Contract: `0xF0694dDDD20878f83992DeB7E4Cf2C5102fBFD4A` on StudioNet
+Contract: `0x90B1f0BcFc1c2e92680427f154F52Df6D93e7f88` on StudioNet
 
 ## Submission Notes
 

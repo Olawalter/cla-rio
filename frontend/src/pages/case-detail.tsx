@@ -117,7 +117,7 @@ export function CaseDetailPage() {
         </span>
       </div>
 
-      <TransactionStatus step={tx.step} error={tx.error} />
+      <TransactionStatus step={tx.step} error={tx.error} txHash={tx.txHash} />
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">

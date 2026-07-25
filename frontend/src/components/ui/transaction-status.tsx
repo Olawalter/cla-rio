@@ -31,9 +31,11 @@ const ORDERED_STEPS: TxStep[] = [
 export function TransactionStatus({
   step,
   error,
+  txHash,
 }: {
   step: TxStep;
   error: string | null;
+  txHash?: string | null;
 }) {
   if (step === "idle") return null;
 
@@ -44,16 +46,33 @@ export function TransactionStatus({
       className="space-y-3"
     >
       <div
-        className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${STEP_COLORS[step]}`}
+        className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${STEP_COLORS[step]}`}
       >
-        {step !== "finalized" && step !== "failed" ? (
-          <Loader2 className="h-5 w-5 animate-spin flex-shrink-0" />
-        ) : (
-          <span className="flex-shrink-0">{STEP_ICONS[step]}</span>
-        )}
-        <span className="text-sm font-medium">
-          {error || TX_STEP_LABELS[step]}
+        <span className="flex-shrink-0 mt-0.5">
+          {step !== "finalized" && step !== "failed" ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            STEP_ICONS[step]
+          )}
         </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">
+            {error || TX_STEP_LABELS[step]}
+          </p>
+          {txHash && (step === "pending_consensus" || step === "finalized") && (
+            <div className="mt-1">
+              <p className="text-xs font-mono opacity-75 truncate">{txHash}</p>
+              <a
+                href={`https://studio.genlayer.com/transactions/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs underline opacity-80 hover:opacity-100"
+              >
+                View on GenLayer Studio →
+              </a>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-1.5">

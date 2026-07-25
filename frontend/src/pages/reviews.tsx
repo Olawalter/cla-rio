@@ -34,7 +34,7 @@ export function ReviewsPage() {
         </p>
       </div>
 
-      <TransactionStatus step={tx.step} error={tx.error} />
+      <TransactionStatus step={tx.step} error={tx.error} txHash={tx.txHash} />
 
       <div className="rounded-xl border border-border bg-white">
         {isLoading ? (

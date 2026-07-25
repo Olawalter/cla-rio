@@ -67,7 +67,7 @@ export function SubmitCasePage() {
         </div>
       </div>
 
-      <TransactionStatus step={step} error={error} />
+      <TransactionStatus step={step} error={error} txHash={txHash} />
 
       {step === "finalized" ? (
         <motion.div
@@ -75,11 +75,19 @@ export function SubmitCasePage() {
           animate={{ opacity: 1 }}
           className="rounded-xl border border-green-200 bg-green-50 p-6 text-center"
         >
-          <p className="font-medium text-green-800">Case submitted and finalized.</p>
+          <p className="font-medium text-green-800">Case submitted — validators reached consensus.</p>
           {txHash && (
-            <p className="text-xs text-green-700 mt-2 font-mono break-all">
-              Tx: {txHash}
-            </p>
+            <div className="mt-2">
+              <p className="text-xs text-green-700 font-mono break-all">{txHash}</p>
+              <a
+                href={`https://studio.genlayer.com/transactions/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-1 text-xs text-primary-600 underline hover:text-primary-700"
+              >
+                View on GenLayer Studio →
+              </a>
+            </div>
           )}
           <button
             onClick={reset}

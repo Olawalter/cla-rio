@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "./use-wallet";
 import { CONTRACT_ADDRESS } from "@/config/contract";
@@ -71,14 +72,12 @@ export function useContractWrite() {
   const { getClient, connected } = useWallet();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({
-      functionName,
-      args,
-    }: {
-      functionName: string;
-      args: unknown[];
-    }) => {
+  const sendTx = useCallback(
+    async (
+      functionName: string,
+      args: unknown[],
+      onHash?: (hash: string) => void
+    ) => {
       if (!connected) throw new Error("Wallet not connected");
       const client = getClient();
 
@@ -89,18 +88,21 @@ export function useContractWrite() {
         value: BigInt(0),
       });
 
+      onHash?.(hash);
+
       const receipt = await client.waitForTransactionReceipt({
         hash,
         retries: 80,
         interval: 3000,
       });
 
+      queryClient.invalidateQueries({ queryKey: ["contract"] });
       return { hash, receipt };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contract"] });
-    },
-  });
+    [connected, getClient, queryClient]
+  );
+
+  return { sendTx };
 }
 
 // --- Typed hooks for specific contract methods ---

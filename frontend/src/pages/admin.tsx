@@ -103,7 +103,7 @@ export function AdminPage() {
         </p>
       </div>
 
-      <TransactionStatus step={tx.step} error={tx.error} />
+      <TransactionStatus step={tx.step} error={tx.error} txHash={tx.txHash} />
 
       {isOwner && (
         <div className="rounded-xl border border-border bg-white p-5 space-y-4">

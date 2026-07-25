@@ -174,9 +174,8 @@ export function useGetCase(caseId: string) {
 }
 
 export function useGetRole(address: string) {
-  const normalized = address ? address.toLowerCase() : "";
-  return useContractRead<string>("get_role", [normalized], {
-    enabled: !!normalized,
+  return useContractRead<string>("get_role", [address], {
+    enabled: !!address,
   });
 }
 

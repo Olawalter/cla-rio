@@ -3,7 +3,6 @@ import { useCallback } from "react";
 import { getAddress } from "viem";
 import { useWallet } from "./use-wallet";
 import { CONTRACT_ADDRESS } from "@/config/contract";
-import { createReadOnlyClient } from "@/config/genlayer-client";
 
 type Address = `0x${string}`;
 
@@ -182,21 +181,8 @@ export function useGetRole(address: string) {
   try {
     checksummed = address ? getAddress(address) : "";
   } catch {}
-  return useQuery({
-    queryKey: ["contract", "get_role", checksummed],
-    queryFn: async () => {
-      const client = createReadOnlyClient();
-      const result = await client.readContract({
-        address: addr(),
-        functionName: "get_role",
-        args: [checksummed],
-      });
-      return (result as string) || "";
-    },
+  return useContractRead<string>("get_role", [checksummed], {
     enabled: !!checksummed,
-    staleTime: 0,
-    refetchOnMount: true,
-    retry: 3,
   });
 }
 

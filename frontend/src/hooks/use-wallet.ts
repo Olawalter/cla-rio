@@ -17,6 +17,7 @@ declare global {
 export function useWallet() {
   const [address, setAddress] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [loading, setLoading] = useState(true); // true until initial eth_accounts check done
   const [error, setError] = useState<string | null>(null);
 
   const connected = !!address;
@@ -83,17 +84,24 @@ export function useWallet() {
           setAddress(accs[0]);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
 
     return () => {
       window.ethereum?.removeListener("accountsChanged", handleAccountsChanged);
     };
   }, []);
 
+  // If no wallet extension, initial check never fires — mark loading done
+  useEffect(() => {
+    if (!window.ethereum) setLoading(false);
+  }, []);
+
   return {
     address,
     connected,
     connecting,
+    loading,
     error,
     connect,
     disconnect,

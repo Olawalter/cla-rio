@@ -1,23 +1,21 @@
-# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm3q93hwfp7jqmwsfhh8jpz09h6" }
+# v0.3.0
+# { "Depends": "py-genlayer:9b8kjyda2ycxyq4ea6g4yfpnydxhd52gqba5rb8dw7krkh5mn9p0" }
 
-from genlayer import *
+import genlayer as gl
+from genlayer.types import *
 import json
-
 
 # ---------------------------------------------------------------------------
 # Clario — Decentralized Clinical Note Triage
 #
-# GenLayer Intelligent Contract that serves as the ONLY backend.
-# All state, logic, AI processing, access control, and audit live here.
-#
-# Privacy: NO PHI is stored. Only sanitized text, hashes, classifications,
+# GenLayer Intelligent Contract — sole backend for Clario.
+# Privacy: NO PHI stored. Only sanitized text, hashes, classifications,
 # and audit metadata. Browser-side redaction strips PII before submission.
 #
 # This contract NEVER diagnoses patients or recommends treatment.
 # It only assists administrative workflow prioritization.
 # ---------------------------------------------------------------------------
 
-# Status constants
 STATUS_DRAFT = "draft"
 STATUS_SUBMITTED = "submitted"
 STATUS_PENDING_CONSENSUS = "pending_consensus"
@@ -27,14 +25,12 @@ STATUS_CHALLENGED = "challenged"
 STATUS_FINALIZED = "finalized"
 STATUS_ARCHIVED = "archived"
 
-# Role constants
 ROLE_HOSPITAL_ADMIN = "hospital_admin"
 ROLE_CLINICIAN = "clinician"
 ROLE_REVIEWER = "reviewer"
 ROLE_AUDITOR = "auditor"
 
 VALID_ROLES = [ROLE_HOSPITAL_ADMIN, ROLE_CLINICIAN, ROLE_REVIEWER, ROLE_AUDITOR]
-
 VALID_CATEGORIES = ["emergency", "urgent", "same_day", "routine", "administrative"]
 
 CRITICAL_KEYWORDS = [
@@ -44,53 +40,30 @@ CRITICAL_KEYWORDS = [
 ]
 
 
-class Clario(gl.Contract):
-    # --- Storage ---
+class Clario(gl.contract.Contract):
     owner: str
-
-    # Hospital registry: address -> hospital JSON
     hospitals: TreeMap[str, str]
     hospital_list: DynArray[str]
-
-    # Staff registry: address -> staff JSON
     staff: TreeMap[str, str]
     staff_list: DynArray[str]
-
-    # Role mapping: address -> role
     roles: TreeMap[str, str]
-
-    # Cases: case_id -> case JSON
     cases: TreeMap[str, str]
     case_ids: DynArray[str]
     case_counter: u64
-
-    # Challenges: challenge_id -> challenge JSON
     challenges: TreeMap[str, str]
     challenge_ids: DynArray[str]
     challenge_counter: u64
-
-    # Manual reviews: review key -> review JSON
     manual_reviews: TreeMap[str, str]
-
-    # Audit log: array of audit entry JSON strings
     audit_log: DynArray[str]
-
-    # Protocol
     protocol_version: str
 
-    # -----------------------------------------------------------------------
-    # Constructor
-    # -----------------------------------------------------------------------
-
     def __init__(self) -> None:
-        self.owner = str(gl.message.sender_address)
+        self.owner = gl.message.sender_address.as_hex
         self.protocol_version = "2.0.0"
         self.case_counter = u64(0)
         self.challenge_counter = u64(0)
         self.roles[self.owner] = ROLE_HOSPITAL_ADMIN
-        self._log_audit("contract_deployed", "", self.owner, {
-            "protocol_version": "2.0.0",
-        })
+        self._log_audit("contract_deployed", "", self.owner, {"protocol_version": "2.0.0"})
 
     # -----------------------------------------------------------------------
     # Hospital Registration
@@ -98,7 +71,7 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def register_hospital(self, name: str, identifier: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         ts = self._timestamp()
         self.hospitals[caller] = json.dumps({
             "address": caller,
@@ -108,12 +81,9 @@ class Clario(gl.Contract):
             "active": True,
         })
         self.hospital_list.append(caller)
-        if caller not in self.roles:
+        if self.roles.get(caller, "") == "":
             self.roles[caller] = ROLE_HOSPITAL_ADMIN
-        self._log_audit("hospital_registered", "", caller, {
-            "name": name,
-            "identifier": identifier,
-        })
+        self._log_audit("hospital_registered", "", caller, {"name": name, "identifier": identifier})
 
     # -----------------------------------------------------------------------
     # Staff Registration & Role Management
@@ -121,7 +91,7 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def register_staff(self, name: str, department: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         ts = self._timestamp()
         self.staff[caller] = json.dumps({
             "address": caller,
@@ -131,39 +101,32 @@ class Clario(gl.Contract):
             "active": True,
         })
         self.staff_list.append(caller)
-        if caller not in self.roles:
+        if self.roles.get(caller, "") == "":
             self.roles[caller] = ROLE_CLINICIAN
-        self._log_audit("staff_registered", "", caller, {
-            "name": name,
-            "department": department,
-        })
+        self._log_audit("staff_registered", "", caller, {"name": name, "department": department})
 
     @gl.public.write
     def grant_role(self, address: str, role: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role == ROLE_HOSPITAL_ADMIN or caller == self.owner, \
-            "Only hospital_admin can grant roles"
-        assert role in VALID_ROLES, f"Invalid role: {role}"
+        if caller_role != ROLE_HOSPITAL_ADMIN and caller != self.owner:
+            raise gl.vm.UserError("Only hospital_admin can grant roles")
+        if role not in VALID_ROLES:
+            raise gl.vm.UserError("Invalid role: " + role)
         self.roles[address] = role
-        self._log_audit("role_granted", "", caller, {
-            "target": address,
-            "role": role,
-        })
+        self._log_audit("role_granted", "", caller, {"target": address, "role": role})
 
     @gl.public.write
     def revoke_role(self, address: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role == ROLE_HOSPITAL_ADMIN or caller == self.owner, \
-            "Only hospital_admin can revoke roles"
-        assert address != self.owner, "Cannot revoke owner role"
+        if caller_role != ROLE_HOSPITAL_ADMIN and caller != self.owner:
+            raise gl.vm.UserError("Only hospital_admin can revoke roles")
+        if address == self.owner:
+            raise gl.vm.UserError("Cannot revoke owner role")
         old_role = self.roles.get(address, "")
         self.roles[address] = ""
-        self._log_audit("role_revoked", "", caller, {
-            "target": address,
-            "previous_role": old_role,
-        })
+        self._log_audit("role_revoked", "", caller, {"target": address, "previous_role": old_role})
 
     # -----------------------------------------------------------------------
     # Case Submission & AI Triage
@@ -177,12 +140,10 @@ class Clario(gl.Contract):
         department: str,
         note_type: str,
     ) -> None:
-        """Submit a clinical note for AI triage. Text must be PHI-redacted
-        by the browser before calling this method."""
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role in (ROLE_CLINICIAN, ROLE_HOSPITAL_ADMIN, ROLE_REVIEWER), \
-            "Not authorized to submit cases"
+        if caller_role not in (ROLE_CLINICIAN, ROLE_HOSPITAL_ADMIN, ROLE_REVIEWER):
+            raise gl.vm.UserError("Not authorized to submit cases")
 
         ts = self._timestamp()
         self.case_counter = u64(int(self.case_counter) + 1)
@@ -226,19 +187,14 @@ class Clario(gl.Contract):
             "note_type": note_type,
         })
 
-        # Run AI triage immediately
         self._run_triage(case_id, sanitized_text, ts)
 
     def _run_triage(self, case_id: str, text: str, ts: str) -> None:
-        """Perform AI classification inside a nondet block with
-        prompt_comparative equivalence for validator consensus."""
-
         case_data = json.loads(self.cases[case_id])
         case_data["status"] = STATUS_PENDING_CONSENSUS
         case_data["triage_started_at"] = ts
         self.cases[case_id] = json.dumps(case_data)
 
-        # Detect critical keywords deterministically
         text_lower = text.lower()
         found_keywords = [kw for kw in CRITICAL_KEYWORDS if kw in text_lower]
         force_human_review = len(found_keywords) > 0
@@ -272,18 +228,21 @@ class Clario(gl.Contract):
         needs_review = force_human_review
 
         def nondet():
-            res = gl.nondet.exec_prompt(prompt, response_format="json")
+            res = gl.nondet.exec_prompt(prompt)
             if isinstance(res, dict):
                 parsed = res
             else:
                 cleaned = str(res).replace("```json", "").replace("```", "").strip()
                 parsed = json.loads(cleaned)
             cat = parsed.get("category", "")
-            assert cat in VALID_CATEGORIES, f"Invalid category: {cat}"
+            if cat not in VALID_CATEGORIES:
+                raise gl.vm.UserError("Invalid category: " + cat)
             ps = parsed.get("priority_score", 0)
-            assert isinstance(ps, int) and 1 <= ps <= 100, "priority_score out of range"
+            if not (isinstance(ps, int) and 1 <= ps <= 100):
+                raise gl.vm.UserError("priority_score out of range")
             conf = parsed.get("confidence", 0)
-            assert isinstance(conf, int) and 1 <= conf <= 100, "confidence out of range"
+            if not (isinstance(conf, int) and 1 <= conf <= 100):
+                raise gl.vm.UserError("confidence out of range")
             return json.dumps(parsed, sort_keys=True)
 
         comparison_prompt = (
@@ -340,22 +299,21 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def request_manual_review(self, case_id: str, reason: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN, ROLE_CLINICIAN), \
-            "Not authorized"
-        assert case_id in self.cases, "Case not found"
+        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN, ROLE_CLINICIAN):
+            raise gl.vm.UserError("Not authorized")
+        if self.cases.get(case_id, "") == "":
+            raise gl.vm.UserError("Case not found")
         case_data = json.loads(self.cases[case_id])
-        assert case_data["status"] == STATUS_CONSENSUS_COMPLETE, \
-            "Case must be in consensus_complete status"
+        if case_data["status"] != STATUS_CONSENSUS_COMPLETE:
+            raise gl.vm.UserError("Case must be in consensus_complete status")
 
         ts = self._timestamp()
         case_data["status"] = STATUS_MANUAL_REVIEW
         case_data["manual_review_requested_at"] = ts
         self.cases[case_id] = json.dumps(case_data)
-        self._log_audit("manual_review_requested", case_id, caller, {
-            "reason": reason,
-        })
+        self._log_audit("manual_review_requested", case_id, caller, {"reason": reason})
 
     @gl.public.write
     def submit_manual_review(
@@ -364,15 +322,17 @@ class Clario(gl.Contract):
         final_category: str,
         review_notes: str,
     ) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN), \
-            "Only reviewers or admins can submit manual reviews"
-        assert case_id in self.cases, "Case not found"
+        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
+            raise gl.vm.UserError("Only reviewers or admins can submit manual reviews")
+        if self.cases.get(case_id, "") == "":
+            raise gl.vm.UserError("Case not found")
         case_data = json.loads(self.cases[case_id])
-        assert case_data["status"] == STATUS_MANUAL_REVIEW, \
-            "Case must be in manual_review status"
-        assert final_category in VALID_CATEGORIES, "Invalid category"
+        if case_data["status"] != STATUS_MANUAL_REVIEW:
+            raise gl.vm.UserError("Case must be in manual_review status")
+        if final_category not in VALID_CATEGORIES:
+            raise gl.vm.UserError("Invalid category")
 
         ts = self._timestamp()
         review_key = case_id + "_review"
@@ -401,12 +361,12 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def challenge_decision(self, case_id: str, reason: str, evidence: str) -> None:
-        caller = str(gl.message.sender_address)
-        assert case_id in self.cases, "Case not found"
+        caller = gl.message.sender_address.as_hex
+        if self.cases.get(case_id, "") == "":
+            raise gl.vm.UserError("Case not found")
         case_data = json.loads(self.cases[case_id])
-        assert case_data["status"] in (
-            STATUS_CONSENSUS_COMPLETE, STATUS_MANUAL_REVIEW, STATUS_FINALIZED,
-        ), "Case not in a challengeable state"
+        if case_data["status"] not in (STATUS_CONSENSUS_COMPLETE, STATUS_MANUAL_REVIEW, STATUS_FINALIZED):
+            raise gl.vm.UserError("Case not in a challengeable state")
 
         ts = self._timestamp()
         self.challenge_counter = u64(int(self.challenge_counter) + 1)
@@ -432,24 +392,20 @@ class Clario(gl.Contract):
         case_data["status"] = STATUS_CHALLENGED
         case_data["challenge_created_at"] = ts
         self.cases[case_id] = json.dumps(case_data)
-
-        self._log_audit("challenge_created", case_id, caller, {
-            "challenge_id": challenge_id,
-            "reason": reason,
-        })
+        self._log_audit("challenge_created", case_id, caller, {"challenge_id": challenge_id, "reason": reason})
 
     @gl.public.write
     def resolve_challenge(self, challenge_id: str, resolution_notes: str) -> None:
-        """AI re-evaluates the challenged decision through a new consensus
-        round, considering the original assessment and challenge evidence."""
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN), \
-            "Only reviewers or admins can resolve challenges"
-        assert challenge_id in self.challenges, "Challenge not found"
+        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
+            raise gl.vm.UserError("Only reviewers or admins can resolve challenges")
+        if self.challenges.get(challenge_id, "") == "":
+            raise gl.vm.UserError("Challenge not found")
 
         challenge = json.loads(self.challenges[challenge_id])
-        assert challenge["status"] == "open", "Challenge already resolved"
+        if challenge["status"] != "open":
+            raise gl.vm.UserError("Challenge already resolved")
 
         case_id = challenge["case_id"]
         case_data = json.loads(self.cases[case_id])
@@ -476,14 +432,16 @@ class Clario(gl.Contract):
         )
 
         def nondet():
-            res = gl.nondet.exec_prompt(resolve_prompt, response_format="json")
+            res = gl.nondet.exec_prompt(resolve_prompt)
             if isinstance(res, dict):
                 parsed = res
             else:
                 cleaned = str(res).replace("```json", "").replace("```", "").strip()
                 parsed = json.loads(cleaned)
-            assert isinstance(parsed.get("upheld"), bool)
-            assert parsed.get("new_category") in VALID_CATEGORIES
+            if not isinstance(parsed.get("upheld"), bool):
+                raise gl.vm.UserError("upheld must be boolean")
+            if parsed.get("new_category") not in VALID_CATEGORIES:
+                raise gl.vm.UserError("Invalid new_category")
             return json.dumps(parsed, sort_keys=True)
 
         comparison = (
@@ -513,7 +471,6 @@ class Clario(gl.Contract):
         challenge["resolved_at"] = ts
         self.challenges[challenge_id] = json.dumps(challenge)
         self.cases[case_id] = json.dumps(case_data)
-
         self._log_audit("challenge_resolved", case_id, caller, {
             "challenge_id": challenge_id,
             "upheld": result["upheld"],
@@ -526,14 +483,15 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def finalize_case(self, case_id: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN), \
-            "Only reviewers or admins can finalize"
-        assert case_id in self.cases, "Case not found"
+        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
+            raise gl.vm.UserError("Only reviewers or admins can finalize")
+        if self.cases.get(case_id, "") == "":
+            raise gl.vm.UserError("Case not found")
         case_data = json.loads(self.cases[case_id])
-        assert case_data["status"] == STATUS_CONSENSUS_COMPLETE, \
-            "Case must be in consensus_complete status to finalize"
+        if case_data["status"] != STATUS_CONSENSUS_COMPLETE:
+            raise gl.vm.UserError("Case must be in consensus_complete status to finalize")
 
         ts = self._timestamp()
         case_data["status"] = STATUS_FINALIZED
@@ -543,14 +501,15 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def archive_case(self, case_id: str) -> None:
-        caller = str(gl.message.sender_address)
+        caller = gl.message.sender_address.as_hex
         caller_role = self.roles.get(caller, "")
-        assert caller_role in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN), \
-            "Only reviewers or admins can archive"
-        assert case_id in self.cases, "Case not found"
+        if caller_role not in (ROLE_REVIEWER, ROLE_HOSPITAL_ADMIN):
+            raise gl.vm.UserError("Only reviewers or admins can archive")
+        if self.cases.get(case_id, "") == "":
+            raise gl.vm.UserError("Case not found")
         case_data = json.loads(self.cases[case_id])
-        assert case_data["status"] == STATUS_FINALIZED, \
-            "Case must be finalized before archiving"
+        if case_data["status"] != STATUS_FINALIZED:
+            raise gl.vm.UserError("Case must be finalized before archiving")
 
         ts = self._timestamp()
         case_data["status"] = STATUS_ARCHIVED
@@ -564,8 +523,9 @@ class Clario(gl.Contract):
 
     @gl.public.write
     def update_protocol(self, version: str, description: str) -> None:
-        caller = str(gl.message.sender_address)
-        assert caller == self.owner, "Only owner can update protocol"
+        caller = gl.message.sender_address.as_hex
+        if caller != self.owner:
+            raise gl.vm.UserError("Only owner can update protocol")
         old = self.protocol_version
         self.protocol_version = version
         self._log_audit("protocol_updated", "", caller, {
@@ -575,14 +535,15 @@ class Clario(gl.Contract):
         })
 
     # -----------------------------------------------------------------------
-    # View Methods — Single Items
+    # View Methods
     # -----------------------------------------------------------------------
 
     @gl.public.view
     def get_case(self, case_id: str) -> str:
-        if case_id not in self.cases:
+        result = self.cases.get(case_id, "")
+        if result == "":
             return json.dumps({"error": "Case not found"})
-        return self.cases[case_id]
+        return result
 
     @gl.public.view
     def get_role(self, address: str) -> str:
@@ -590,28 +551,32 @@ class Clario(gl.Contract):
 
     @gl.public.view
     def get_hospital(self, address: str) -> str:
-        if address not in self.hospitals:
+        result = self.hospitals.get(address, "")
+        if result == "":
             return json.dumps({"error": "Hospital not found"})
-        return self.hospitals[address]
+        return result
 
     @gl.public.view
     def get_staff(self, address: str) -> str:
-        if address not in self.staff:
+        result = self.staff.get(address, "")
+        if result == "":
             return json.dumps({"error": "Staff not found"})
-        return self.staff[address]
+        return result
 
     @gl.public.view
     def get_challenge(self, challenge_id: str) -> str:
-        if challenge_id not in self.challenges:
+        result = self.challenges.get(challenge_id, "")
+        if result == "":
             return json.dumps({"error": "Challenge not found"})
-        return self.challenges[challenge_id]
+        return result
 
     @gl.public.view
     def get_manual_review(self, case_id: str) -> str:
         key = case_id + "_review"
-        if key not in self.manual_reviews:
+        result = self.manual_reviews.get(key, "")
+        if result == "":
             return json.dumps({"error": "Manual review not found"})
-        return self.manual_reviews[key]
+        return result
 
     @gl.public.view
     def get_protocol_version(self) -> str:
@@ -620,10 +585,6 @@ class Clario(gl.Contract):
     @gl.public.view
     def get_owner(self) -> str:
         return self.owner
-
-    # -----------------------------------------------------------------------
-    # View Methods — Listings
-    # -----------------------------------------------------------------------
 
     @gl.public.view
     def list_cases(self) -> str:
@@ -716,15 +677,9 @@ class Clario(gl.Contract):
     # -----------------------------------------------------------------------
 
     def _timestamp(self) -> str:
-        return str(gl.message_raw["datetime"])
+        return ""
 
-    def _log_audit(
-        self,
-        event_type: str,
-        case_id: str,
-        actor: str,
-        details: dict,
-    ) -> None:
+    def _log_audit(self, event_type: str, case_id: str, actor: str, details: dict) -> None:
         ts = self._timestamp()
         self.audit_log.append(json.dumps({
             "event_type": event_type,

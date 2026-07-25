@@ -2,7 +2,7 @@
 
 **Privacy-preserving, decentralized clinical note triage — 100% on-chain.**
 
-[Live Demo](https://cla-rio.vercel.app) | [GenLayer](https://genlayer.com) | Contract: `0x593c0D78350F86637190162bf981920D81bd3FD9`
+[Live Demo](https://cla-rio.vercel.app) | [GenLayer](https://genlayer.com) | Contract: `0xEf57cCa20BF4b165a6bbDC3b51862D528e7f53dB`
 
 ---
 

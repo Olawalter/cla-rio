@@ -10,7 +10,7 @@ const ROLES = ["hospital_admin", "clinician", "reviewer", "auditor"] as const;
 
 export function AdminPage() {
   const { address } = useWallet();
-  const { data: role } = useGetRole(address || "");
+  const { data: role, isLoading: roleLoading, isError: roleError, refetch: refetchRole } = useGetRole(address || "");
   const tx = useTransaction();
 
   const [grantAddr, setGrantAddr] = useState("");
@@ -46,6 +46,34 @@ export function AdminPage() {
     setStaffAddr("");
   }
 
+  if (roleLoading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-text-primary">Administration</h1>
+        <div className="rounded-xl border border-border bg-white p-8 text-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent mx-auto mb-3" />
+          <p className="text-sm text-text-secondary">Checking role on-chain…</p>
+          <p className="text-xs text-text-tertiary mt-1 font-mono">{address}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (roleError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-text-primary">Administration</h1>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-3" />
+          <p className="text-sm text-red-800">Could not reach the contract. Check your connection.</p>
+          <button onClick={() => refetchRole()} className="mt-3 rounded-lg bg-primary-500 px-4 py-2 text-sm text-white hover:bg-primary-600">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="space-y-6">
@@ -58,6 +86,9 @@ export function AdminPage() {
           <p className="text-xs text-amber-700 mt-1">
             Current role: <span className="font-medium capitalize">{(role as string) || "unregistered"}</span>
           </p>
+          <button onClick={() => refetchRole()} className="mt-3 rounded-lg border border-amber-300 px-4 py-2 text-xs text-amber-700 hover:bg-amber-100">
+            Refresh role
+          </button>
         </div>
       </div>
     );

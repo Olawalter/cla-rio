@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWallet } from "./use-wallet";
 import { CONTRACT_ADDRESS } from "@/config/contract";
+import { createReadOnlyClient } from "@/config/genlayer-client";
 
 type Address = `0x${string}`;
 
@@ -174,8 +175,21 @@ export function useGetCase(caseId: string) {
 }
 
 export function useGetRole(address: string) {
-  return useContractRead<string>("get_role", [address], {
+  return useQuery({
+    queryKey: ["contract", "get_role", address],
+    queryFn: async () => {
+      const client = createReadOnlyClient();
+      const result = await client.readContract({
+        address: addr(),
+        functionName: "get_role",
+        args: [address],
+      });
+      return (result as string) || "";
+    },
     enabled: !!address,
+    staleTime: 0,
+    refetchOnMount: true,
+    retry: 3,
   });
 }
 

@@ -177,12 +177,25 @@ export function useGetCase(caseId: string) {
 }
 
 export function useGetRole(address: string) {
+  const { getReadOnlyClient } = useWallet();
   let checksummed = "";
   try {
     checksummed = address ? getAddress(address) : "";
   } catch {}
-  return useContractRead<string>("get_role", [checksummed], {
+  return useQuery({
+    queryKey: ["contract", "get_role", checksummed],
+    queryFn: async () => {
+      const client = getReadOnlyClient();
+      const result = await client.readContract({
+        address: addr(),
+        functionName: "get_role",
+        args: [checksummed],
+      });
+      return (result as string) || "";
+    },
     enabled: !!checksummed,
+    staleTime: 0,
+    retry: 0,
   });
 }
 

@@ -60,7 +60,7 @@ Clinician submits note
 ```
 ┌──────────────────────────────┐         ┌──────────────────────────────────────┐
 │   Vite 5 + React 18          │         │   GenLayer Intelligent Contract       │
-│   (clarionote.vercel.app)    │ ──────▶ │   0xF0694dDD...fBFD4A on StudioNet   │
+│   (clarionote.vercel.app)    │ ──────▶ │   0x90B1f0Bc...e7f88 on StudioNet    │
 │                              │ ◀────── │                                      │
 │  • Browser-side PHI redact   │         │  • gl.exec_prompt() — AI triage      │
 │  • SHA-256 hash integrity    │         │  • gl.eq_principle.prompt_comp()     │
